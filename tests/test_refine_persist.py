@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from src.core.refine_persist import (
+from src.core.refine.refine_persist import (
     THREAD_POLICY_KEEP,
     THREAD_POLICY_RESET,
     persist_refined_card,
@@ -49,7 +49,7 @@ def _persist_kwargs(session, **overrides):
 class PersistRefinedCardTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_policy_does_not_touch_db(self):
         session = FakeSession()
-        with patch("src.core.refine_persist.refine_card_in_db", new_callable=AsyncMock) as refine_db:
+        with patch("src.core.refine.refine_persist.refine_card_in_db", new_callable=AsyncMock) as refine_db:
             result = await persist_refined_card(
                 **_persist_kwargs(session, thread_policy="wipe_chat")
             )
@@ -59,7 +59,7 @@ class PersistRefinedCardTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_keep_thread_requires_entry_id(self):
         session = FakeSession()
-        with patch("src.core.refine_persist.refine_card_in_db", new_callable=AsyncMock) as refine_db:
+        with patch("src.core.refine.refine_persist.refine_card_in_db", new_callable=AsyncMock) as refine_db:
             result = await persist_refined_card(
                 **_persist_kwargs(session, thread_policy=THREAD_POLICY_KEEP, entry_id=None)
             )
@@ -70,26 +70,26 @@ class PersistRefinedCardTests(unittest.IsolatedAsyncioTestCase):
     async def test_reset_thread_saves_card_history_and_inserts_blank_chat(self):
         session = FakeSession()
         with patch(
-            "src.core.refine_persist.refine_card_in_db",
+            "src.core.refine.refine_persist.refine_card_in_db",
             new_callable=AsyncMock,
             return_value={"success": True, "parentcard_id": "pc-9", "card_id": "sec-1", "version": 4},
         ) as refine_db, patch(
-            "src.core.refine_persist.update_refinement_history",
+            "src.core.refine.refine_persist.update_refinement_history",
             new_callable=AsyncMock,
             return_value={"success": True},
         ) as hist, patch(
-            "src.core.refine_persist.get_latest_ask_caspr_version",
+            "src.core.refine.refine_persist.get_latest_ask_caspr_version",
             new_callable=AsyncMock,
             return_value=2,
         ), patch(
-            "src.core.refine_persist.insert_ask_caspr_chat_entry",
+            "src.core.refine.refine_persist.insert_ask_caspr_chat_entry",
             new_callable=AsyncMock,
             return_value={"success": True, "entry_id": "new-row"},
         ) as insert_chat, patch(
-            "src.core.refine_persist.update_ask_caspr_chat_after_refine",
+            "src.core.refine.refine_persist.update_ask_caspr_chat_after_refine",
             new_callable=AsyncMock,
         ) as keep, patch(
-            "src.core.refine_persist.update_report_status_if_needed",
+            "src.core.refine.refine_persist.update_report_status_if_needed",
             new_callable=AsyncMock,
             return_value={"success": True},
         ) as redo:
@@ -116,22 +116,22 @@ class PersistRefinedCardTests(unittest.IsolatedAsyncioTestCase):
         session = FakeSession()
         existing_chat = [{"role": "user", "content": "what is this section?"}]
         with patch(
-            "src.core.refine_persist.refine_card_in_db",
+            "src.core.refine.refine_persist.refine_card_in_db",
             new_callable=AsyncMock,
             return_value={"success": True, "parentcard_id": "pc-9", "card_id": "sec-1", "version": 5},
         ), patch(
-            "src.core.refine_persist.update_refinement_history",
+            "src.core.refine.refine_persist.update_refinement_history",
             new_callable=AsyncMock,
             return_value={"success": True},
         ) as hist, patch(
-            "src.core.refine_persist.insert_ask_caspr_chat_entry",
+            "src.core.refine.refine_persist.insert_ask_caspr_chat_entry",
             new_callable=AsyncMock,
         ) as insert_chat, patch(
-            "src.core.refine_persist.update_ask_caspr_chat_after_refine",
+            "src.core.refine.refine_persist.update_ask_caspr_chat_after_refine",
             new_callable=AsyncMock,
             return_value={"success": True, "entry_id": "same-row", "card_version": 5},
         ) as keep, patch(
-            "src.core.refine_persist.update_report_status_if_needed",
+            "src.core.refine.refine_persist.update_report_status_if_needed",
             new_callable=AsyncMock,
             return_value={"success": True},
         ):
@@ -158,11 +158,11 @@ class PersistRefinedCardTests(unittest.IsolatedAsyncioTestCase):
     async def test_refine_card_in_db_failure_returns_error(self):
         session = FakeSession()
         with patch(
-            "src.core.refine_persist.refine_card_in_db",
+            "src.core.refine.refine_persist.refine_card_in_db",
             new_callable=AsyncMock,
             return_value={"success": False, "error": "No business card_id found in card data"},
         ), patch(
-            "src.core.refine_persist.update_refinement_history",
+            "src.core.refine.refine_persist.update_refinement_history",
             new_callable=AsyncMock,
         ) as hist:
             result = await persist_refined_card(**_persist_kwargs(session))

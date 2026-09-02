@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from src.config.log_helper import setup_logging
-from src.core.token_auth import get_current_active_user
+from src.core.auth.token_auth import get_current_active_user
 from src.db.db_utils import async_session_scope
 from src.db.onboarding_db import (
     get_active_research_interests,

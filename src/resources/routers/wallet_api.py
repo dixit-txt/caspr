@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from fastapi.responses import JSONResponse
 import time
 
-from src.core.token_auth import get_current_active_user
+from src.core.auth.token_auth import get_current_active_user
 from src.db.db_utils import async_session_scope
 from src.services.wallet_service import WalletService
 from src.config.log_helper import setup_logging

@@ -56,19 +56,19 @@ from google.auth.transport import requests as google_requests
 import random
 
 
-from src.core.email_utils import send_report_notification_email, send_password_reset_email, send_signup_verification_email, send_subscribe_confirmation_email, send_request_confirmation_email, send_book_call_email
-from src.core.cloudwatch_utils import insert_cloudwatch_logs, insert_cloudwatch_logs_for_caspr_page
-from src.core.openai_file_utils import ensure_report_file_id
+from src.core.integrations.email_utils import send_report_notification_email, send_password_reset_email, send_signup_verification_email, send_subscribe_confirmation_email, send_request_confirmation_email, send_book_call_email
+from src.core.observability.cloudwatch_utils import insert_cloudwatch_logs, insert_cloudwatch_logs_for_caspr_page
+from src.core.integrations.openai_file_utils import ensure_report_file_id
 from src.core.grep_agent_2 import get_or_create_grep_session
 from src.db.grep_db import get_chat_uploaded_file_ids
-from src.core.functionality_context import Functionality, set_functionality
-from src.core.web_search_analytics import (
+from src.core.observability.functionality_context import Functionality, set_functionality
+from src.core.observability.web_search_analytics import (
     enrich_terminal_search_analytics,
     log_scheduled_analytics_batch,
     search_analytics_schedule_kwargs,
 )
 from src.db.web_search_db import log_web_search_event
-from src.core.pptx_utils import (
+from src.core.report_util.pptx_utils import (
     content_slides_for_report,
     content_slides_for_report_length,
     generate_markdown_from_report,
@@ -76,12 +76,11 @@ from src.core.pptx_utils import (
     generate_pptx_deck_local,
     generate_pptx_markdown_from_report,
 )
-from src.core.publish_utils import publish_report
-from src.core.redis_utils import get_redis_instance
-from src.core.utils import extract_content, generate_password_hash, verify_password
+from src.core.integrations.redis_utils import get_redis_instance
+from src.core.common.utils import extract_content, generate_password_hash, verify_password
 from src.db.db_utils import async_session_scope
 from src.config.log_helper import setup_logging
-from src.core.card_utils import generate_section_summary
+from src.core.cards.card_utils import generate_section_summary
 from src.core.infographics.one_pager import generate_one_pager
 from src.db.async_db_functions import (
     check_user_by_id,#redis
@@ -133,27 +132,21 @@ from src.db.async_db_functions import (
     insert_ask_caspr_chat_entry,
     verify_report_ownership
 )
-from src.core.refine_persist import THREAD_POLICY_RESET, persist_refined_card
+from src.core.refine.refine_persist import THREAD_POLICY_RESET, persist_refined_card
 from src.db.database import Card, ChatFile, Message, Report, Table, ReportVersion
 from src.db.enums import ReportStatus, RefinementType, SubscriptionTier, FileUsageType, FileUploadContext
-from src.core.upload_processor import ensure_vector_store_and_attach_files
-from src.db.upload_db import (
-    build_upload_file_config_from_chat,
-    get_active_file_version,
-    get_chat_files,
-)
 from src.db.wallet_functions import get_active_subscription
 from src.services.wallet_service import WalletService
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.core.refiner import refine_card
-from src.core.remove import extract_toc_after_delete
-from src.core.refine_visualizer.viz_refine import refine_viz
+from src.core.refine.refiner import refine_card
+from src.core.cards.remove import extract_toc_after_delete
+from src.core.refine.visualizer.viz_refine import refine_viz
 from src.db.db_utils import async_session_scope
-from src.core.executive_summary_updater import update_executive_summary
-from src.core.model import Casper
+from src.core.report_util.executive_summary_updater import update_executive_summary
+from src.core.agent.model import Casper
 from src.core.report_util.entry_point import process_report_cards, generate_report_output
-from src.core.s3_utils import (
+from src.core.integrations.s3_utils import (
     get_s3_instance,
     build_report_s3_prefix,
     upload_initial_markdown_to_s3,
@@ -220,7 +213,7 @@ from src.resources.schemas.dashboard import (
     OngoingChatItem,
 )
 from src.resources.exceptions import http_exception_handler, validation_exception_handler
-from src.core.token_auth import get_current_active_user, get_current_user_context, create_access_token, create_refresh_token, verify_token, create_reset_password_token, create_verification_token
+from src.core.auth.token_auth import get_current_active_user, create_access_token, create_refresh_token, verify_token, create_reset_password_token, create_verification_token
 from src.db.async_db_functions import (
     get_latest_card_version,
     get_dashboard_stats,
@@ -1592,7 +1585,7 @@ async def refresh_session(stream_key: str, chat_id: str):
         logger.error(f"[SSE] Error refreshing session: {e} for chat_id: {chat_id} and stream_key: {stream_key}")
         return False
 
-async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
+async def chat_producer(data: ChatRequest, user_id: str):
     """Chat endpoint with streaming response"""
     logger.info(f"Processing chat request from user_id: {user_id} and chat_id: {data.chat_id}")
     stream_key = f"session:{data.session_id}"
@@ -1601,7 +1594,7 @@ async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
     # logger.error() fired deep inside (model fallbacks, retries, etc.) gets
     # attributed to this user / chat in the digest email.  user_email is
     # filled in below once we load the user record.
-    from src.core.error_alerter import _init_request_context, set_alert_request_context
+    from src.core.observability.error_alerter import _init_request_context, set_alert_request_context
     _init_request_context()
     set_alert_request_context(
         method="BACKGROUND",
@@ -2539,7 +2532,6 @@ async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
                                     'updated_at': message_stream_complete_time,
                                     'created_at': query_received_time,
                                     'chat_title': chat_title,
-                                    'is_mcp': is_mcp
                                 }
                             else:
                                 message_data = {
@@ -2717,7 +2709,6 @@ async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
                     'created_at': query_received_time if is_new_chat else None,
                     'chat_title': chat_title,
                     'message_citations': turn_citations,
-                    'is_mcp': is_mcp
                 }
                 db_response = await insert_chats(message_data=message_data, session=session)
                 if not db_response.get('success', False):
@@ -2994,7 +2985,7 @@ async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
         # main.py never sees it; without this explicit queueing the operator
         # would only get a CloudWatch line and no alert email.
         try:
-            from src.core.error_alerter import queue_background_error
+            from src.core.observability.error_alerter import queue_background_error
             await queue_background_error(
                 path=f"chat_producer:/api/v1/chat (chat_id={data.chat_id})",
                 error_message=f"chat_producer failed: {e}",
@@ -3057,7 +3048,7 @@ async def chat_producer(data: ChatRequest, user_id: str, is_mcp: bool = False):
         500: {"model": ErrorResponse}
     },
 )
-async def chat(data: ChatRequest, background_tasks: BackgroundTasks, user_context: tuple = Depends(get_current_user_context)):
+async def chat(data: ChatRequest, background_tasks: BackgroundTasks, user_id: str = Depends(get_current_active_user)):
     """
     POST /chat – Process a chat message.
 
@@ -3072,7 +3063,6 @@ async def chat(data: ChatRequest, background_tasks: BackgroundTasks, user_contex
       - For new chats (``is_new_chat=true``) with ``reference_ids`` and a
         paid plan → ``chat_files`` records are created in ``chat_producer``.
     """
-    user_id, is_mcp = user_context
     logger.info(f"Received chat request for user_id: {user_id} and chat_id: {data.chat_id}")
     try:
         # Check if session id is valid
@@ -3132,7 +3122,7 @@ async def chat(data: ChatRequest, background_tasks: BackgroundTasks, user_contex
 
         # Add the chat_producer function directly to background tasks
         logger.info(f"Creating background task for user_id: {user_id} and chat_id: {data.chat_id}")
-        background_tasks.add_task(chat_producer, data, user_id, is_mcp)
+        background_tasks.add_task(chat_producer, data, user_id)
         logger.info(f"Background task created for user_id: {user_id} and chat_id: {data.chat_id}")
         return JSONResponse(
             status_code=200,
@@ -3298,7 +3288,7 @@ async def temp_chat_producer(data: TempChatRequest):
 
     # Seed the error-digest context (temp chats are anonymous so we only have
     # a chat_id to attribute errors to in the digest email).
-    from src.core.error_alerter import _init_request_context, set_alert_request_context
+    from src.core.observability.error_alerter import _init_request_context, set_alert_request_context
     _init_request_context()
     set_alert_request_context(
         method="BACKGROUND",
@@ -3595,7 +3585,7 @@ async def temp_chat_producer(data: TempChatRequest):
         # main.py never sees it; without this explicit queueing the operator
         # would only get a CloudWatch line and no alert email.
         try:
-            from src.core.error_alerter import queue_background_error
+            from src.core.observability.error_alerter import queue_background_error
             chat_id_for_log = getattr(data, "chat_id", None) or "unknown"
             await queue_background_error(
                 path=f"temp_chat_producer:/api/v1/temp_chat (chat_id={chat_id_for_log})",
@@ -5078,14 +5068,12 @@ async def get_chat_messages(chat_id: str, user_id: str = Depends(get_current_act
             
             chat_messages = db_response.get('message', {}).get('chat_messages', [])
             message_citations = db_response.get('message', {}).get('message_citations', {}) or {}
-            is_mcp_chat = db_response.get('message', {}).get('is_mcp', False)
             if not chat_messages:
                 logger.warning(f"No chat messages found for chat_id: {chat_id}, user_id: {user_id}")
                 return PreviousChatMessagesResponse(
                     success=True,
                     messages=processing_user_message,
                     reports=[],
-                    is_mcp=is_mcp_chat,
                     turn_in_progress=bool(processing_user_message),
                 )
                 # return JSONResponse(
@@ -5141,7 +5129,6 @@ async def get_chat_messages(chat_id: str, user_id: str = Depends(get_current_act
                 success=True,
                 messages=formatted_chat_messages + processing_user_message,
                 reports=reports_with_cards,
-                is_mcp=is_mcp_chat,
                 turn_in_progress=bool(processing_user_message),
             )
     
@@ -5167,8 +5154,7 @@ async def get_chat_messages(chat_id: str, user_id: str = Depends(get_current_act
 async def chat_list(
     user_id: str = Depends(get_current_active_user),
     status: Optional[str] = Query(None, description="Comma-separated status values to filter by (e.g., 'draft,analysis-completed')"),
-    search: Optional[str] = Query(None, description="Search term to filter chat titles (case-insensitive substring match)"),
-    is_mcp: Optional[bool] = Query(None, description="Filter by MCP origin: true for MCP-only, false for non-MCP-only, omit for all")
+    search: Optional[str] = Query(None, description="Search term to filter chat titles (case-insensitive substring match)")
 ):
     """
     Get user chats endpoint with optional status filtering and search
@@ -5176,13 +5162,11 @@ async def chat_list(
     Query Parameters:
     - status: Optional comma-separated list of status values to filter by
     - search: Optional search term to filter chat titles (case-insensitive)
-    - is_mcp: Optional boolean to filter by MCP origin (true/false)
     
     Examples:
     - /chat-list (returns all chats)
     - /chat-list?status=draft (returns only draft chats)
     - /chat-list?search=AI (returns chats with "AI" in title)
-    - /chat-list?is_mcp=true (returns only MCP-originated chats)
     - /chat-list?search=wealth&status=draft,analysis-completed (returns chats matching both filters)
     
     Valid status values:
@@ -5196,7 +5180,7 @@ async def chat_list(
     - redo-analysis
     - error-generation-report
     """
-    logger.info(f"Get user chats request received for user_id: {user_id}, status filter: {status}, search: {search}, is_mcp: {is_mcp}")
+    logger.info(f"Get user chats request received for user_id: {user_id}, status filter: {status}, search: {search}")
     try:        
         async with async_session_scope() as session:
             # Check if user exists and credentials are valid
@@ -5215,7 +5199,7 @@ async def chat_list(
                 )
             
             # Get all chats for the user
-            db_response = await get_user_chats(user_id=user_id, session=session, is_mcp=is_mcp)
+            db_response = await get_user_chats(user_id=user_id, session=session)
             if not db_response.get('success', False):
                 logger.error(f"Database error: Failed to get user chats: {db_response.get('error')}")
                 return JSONResponse(
@@ -5291,7 +5275,6 @@ async def chat_list(
                             'updated_at': chat['updated_at'],
                             'created_at': chat['created_at'],
                             'session_id': session_id,
-                            'is_mcp': chat.get('is_mcp', False)
                         }
                     )
             
@@ -7107,7 +7090,7 @@ async def generate_pptx(
     logger.info(f"Generate presentation request received for user_id: {user_id}, report_id: {report_id}, version_id: {report_version_id}, mode: {generation_mode}")
     
     # Check if disclaimer template exists
-    # from src.core.pptx_utils import TEMPLATE_PATH #TODO add the Template in a asset folder
+    # from src.core.report_util.pptx_utils import TEMPLATE_PATH #TODO add the Template in a asset folder
     # if os.path.exists(TEMPLATE_PATH):
     #     logger.info(f"Disclaimer template found at {TEMPLATE_PATH}")
     # else:
@@ -9108,7 +9091,7 @@ def extract_table_markdown_from_card_content(content_dict: dict, sub_sections: l
     Returns:
         The markdown table string if found, None otherwise
     """
-    from src.core.card_utils import extract_markdown_tables
+    from src.core.cards.card_utils import extract_markdown_tables
     
     # Check section-level content
     if isinstance(content_dict, dict):

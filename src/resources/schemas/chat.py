@@ -55,7 +55,6 @@ class PreviousChatMessagesResponse(BaseModel):
     success: bool
     messages: Union[List[Dict], None]
     reports: Union[List[Dict], None]
-    is_mcp: bool = False
     turn_in_progress: bool = False
     
 class UserChatsRequest(BaseModel):

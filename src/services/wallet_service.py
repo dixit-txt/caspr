@@ -32,7 +32,7 @@ from src.config.constants import (
     COUNTRY_TO_CURRENCY, DEFAULT_SUBSCRIPTION_TOTAL_COUNT
 )
 from src.config.log_helper import setup_logging
-from src.core.email_utils import send_payment_notification_email
+from src.core.integrations.email_utils import send_payment_notification_email
 
 logger = setup_logging(__file__)
 

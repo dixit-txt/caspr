@@ -10,7 +10,7 @@ report_generation, refine, refine_visualization, executive_summary,
 infographic, pptx_generation, ask_caspr, other).
 
 The column is a plain ``VARCHAR`` (NOT a Postgres native enum): the allowed
-values live in ``src.core.functionality_context.Functionality`` (a Python enum)
+values live in ``src.core.observability.functionality_context.Functionality`` (a Python enum)
 so buckets can be added / renamed without a DB enum migration.
 
 A best-effort backfill maps existing rows' free-text ``context`` / ``agent_name``
@@ -30,7 +30,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # (SQL ILIKE pattern, functionality) — evaluated top-to-bottom; FIRST match
-# wins. Kept in sync with src.core.functionality_context._CONTEXT_RULES. The
+# wins. Kept in sync with src.core.observability.functionality_context._CONTEXT_RULES. The
 # patterns match the human-readable ``context`` phrases stored by
 # ``save_raw_llm_response`` (plus code-identifier fragments for robustness).
 _BACKFILL_RULES: list[tuple[str, str]] = [
@@ -132,7 +132,7 @@ def upgrade() -> None:
             nullable=True,
             comment=(
                 'Stable user-facing functionality bucket '
-                '(see src.core.functionality_context.Functionality), '
+                '(see src.core.observability.functionality_context.Functionality), '
                 'e.g. report_generation'
             ),
         ),

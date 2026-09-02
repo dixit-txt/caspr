@@ -29,7 +29,7 @@ from src.config.constants import (
     SYNC_OPENAI_CLIENT, PRIMARY_RESEARCH_MODEL, GEMINI_API_KEY, GEMINI_PRIMARY_RESEARCH_MODEL,
 )
 from src.config.log_helper import setup_logging
-from src.core.llm_response_logger import save_raw_llm_response, strip_json_code_fence
+from src.core.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
 from src.core.domains.planner import (
     BaseDomainState,
     generate_section_cards,

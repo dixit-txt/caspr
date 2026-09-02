@@ -15,20 +15,18 @@ from src.resources.routers import wallet_api
 # routes" for why, and what a reverse-proxy shim here would look like.
 from src.resources.routers import onboarding_api
 from src.resources.routers import admin_api
-from src.resources.routers import mcp_api_key_api
 from src.resources.routers import internal_db_api
-from src.core.caspr_mcp.server import caspr_server, mcp_asgi_app
 from src.config.log_helper import setup_logging
 from src.config.constants import ALLOWED_ORIGINS, ENVIRONMENT
-from src.core.cloudwatch_utils import CloudwatchInstance
-from src.core.error_alerter import (
+from src.core.observability.cloudwatch_utils import CloudwatchInstance
+from src.core.observability.error_alerter import (
     ErrorAlertManager,
     _init_request_context,
     _consume_alert_traceback,
     _was_alert_already_queued,
     set_alert_request_context,
 )
-from src.core.redis_utils import get_redis_instance
+from src.core.integrations.redis_utils import get_redis_instance
 from contextlib import asynccontextmanager
 
 # Configure logging
@@ -39,11 +37,6 @@ _redis = get_redis_instance()
 error_alerter = ErrorAlertManager(redis_client=_redis.redis_client)
 
 
-# Caspr MCP server (mounted in-process, served at /mcp). The streamable-http
-# session manager must be run inside the parent app's lifespan.
-mcp_app = mcp_asgi_app()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -52,10 +45,7 @@ async def lifespan(app: FastAPI):
     logger.info("Cloudwatch connected...")
     digest_task = asyncio.create_task(error_alerter.start_digest_loop())
     logger.info("Error digest loop started...")
-    # Run the mounted MCP server's session manager alongside our lifespan.
-    async with caspr_server.session_manager.run():
-        logger.info("Caspr MCP server mounted at /mcp ...")
-        yield
+    yield
     # Shutdown
     logger.info("Shutting down...")
     digest_task.cancel()
@@ -233,15 +223,11 @@ app.include_router(api.router, prefix="/api/v1", tags=["Chat"])
 app.include_router(wallet_api.router, prefix="/api/v1", tags=["Wallet"])
 app.include_router(onboarding_api.router, prefix="/api/v1", tags=["Onboarding"])
 app.include_router(admin_api.router, prefix="/api/v1", tags=["Admin Dashboard"])
-app.include_router(mcp_api_key_api.router, prefix="/api/v1", tags=["MCP API Keys"])
 # internal_db_api's routes already carry the full /internal/db/... path in
 # each decorator (no prefix here) — this is service-to-service only, not
 # part of the public /api/v1 surface. See its module docstring for the
 # access-control caveat.
 app.include_router(internal_db_api.router, tags=["Internal DB (service-to-service)"])
-
-# Mount the caspr MCP server (streamable-http) at /mcp
-app.mount("/mcp", mcp_app)
 
 
 # Health check endpoint

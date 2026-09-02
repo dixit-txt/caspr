@@ -1,0 +1,22 @@
+# The image builds its own /app/.venv via `uv sync`. Copying the host venv in
+# would shadow it with binaries built against a different interpreter/libc.
+.venv/
+venv/
+
+# Secrets must be injected at run time (env vars / secrets manager), never
+# baked into an image layer.
+.env
+.env.*
+
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.log
+
+Dockerfile
+.dockerignore
+README.md

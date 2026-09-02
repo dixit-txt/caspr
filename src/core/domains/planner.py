@@ -21,15 +21,15 @@ from langgraph.config import get_stream_writer
 
 from src.config.constants import S3_REPORTS_BASE_PATH
 from src.config.log_helper import setup_logging
-from src.core.card_fixer import fix_card
-from src.core.web_search_analytics import (
+from src.core.cards.card_fixer import fix_card
+from src.core.observability.web_search_analytics import (
     enrich_terminal_search_analytics,
     logical_card_id,
     log_scheduled_analytics_batch,
     search_analytics_schedule_kwargs,
 )
 from src.db.web_search_db import log_web_search_event
-from src.core.card_utils import (
+from src.core.cards.card_utils import (
     add_viz_to_card,
     clean_drl,
     clean_drl_to_clean_rl,
@@ -965,7 +965,7 @@ def _normalise_citations(
         for c in raw_citations:
             url = c.get("url")
             if url:
-                from src.core.card_utils import clean_url
+                from src.core.cards.card_utils import clean_url
                 try:
                     urls.append(clean_url(url))
                 except Exception:

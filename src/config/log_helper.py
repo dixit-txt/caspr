@@ -47,7 +47,7 @@ class _ExceptionCaptureFilter(logging.Filter):
             import sys
             if sys.exc_info()[0] is not None:
                 try:
-                    from src.core.error_alerter import capture_exception_for_alerter
+                    from src.core.observability.error_alerter import capture_exception_for_alerter
                     capture_exception_for_alerter(logger_name=record.name)
                 except Exception:
                     pass
@@ -204,7 +204,6 @@ def setup_logging(file=None, log_file_path='app.log'):
         plain_formatter.converter = time.gmtime
 
         # Console handler — colour when TTY, plain otherwise
-        # Uses stderr so log output never collides with MCP stdio JSON-RPC on stdout
         console_handler = logging.StreamHandler(sys.stderr)
         if _supports_color():
             color_formatter = _ColorFormatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)

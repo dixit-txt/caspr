@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from src.config.log_helper import setup_logging
-from src.core.admin_auth import get_current_dashboard_admin
+from src.core.auth.admin_auth import get_current_dashboard_admin
 from src.db import admin_db
 from src.db.db_utils import async_session_scope
 

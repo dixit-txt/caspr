@@ -40,11 +40,11 @@ from src.db import grep_db, upload_db
 from sqlalchemy import select
 from src.db.database import Message
 from src.db.async_db_functions import (
-    get_user_details, get_report_cards, insert_cost_tracker,
+    get_user_details, insert_cost_tracker,
     check_user_by_id, get_report_details, update_report,
     get_report_in_cards_format, get_latest_card_version,
 )
-from src.core.refine_persist import persist_refined_card
+from src.core.refine.refine_persist import persist_refined_card
 from src.db.ask_caspr_db import (
     validate_section_exists_in_ask_caspr,
     get_latest_ask_caspr_chat_entry,
@@ -55,10 +55,9 @@ from src.db.ask_caspr_db import (
     get_ask_caspr_chat_for_version,
 )
 from src.db.web_search_db import log_web_search_event
-from src.core.openai_file_utils import ensure_report_file_id
+from src.core.integrations.openai_file_utils import ensure_report_file_id
 from src.db.wallet_functions import get_active_subscription
 from src.db.database import UserVectorStore, FileVersion
-from src.db.mcp_api_key_functions import resolve_user_id_from_mcp_api_key
 
 logger = setup_logging(__file__)
 
@@ -319,10 +318,8 @@ async def list_chat_files(chat_id: str):
 
 # ============================================================================
 # Vector store / file version / vector-store-file junction
-# (OpenAI vector-store bookkeeping used by upload_processor.py's
-# ensure_vector_store_and_attach_files flow — that flow itself stays in
-# caspr-api, see README, but grep-service's ingestion path also touches
-# these same tables when attaching newly-parsed files.)
+# (OpenAI vector-store bookkeeping — grep-service's ingestion path touches
+# these tables when attaching newly-parsed files.)
 # ============================================================================
 
 class CreateVectorStoreRequest(BaseModel):
@@ -521,40 +518,6 @@ async def get_user(user_id: str):
 async def get_subscription(user_id: str):
     async with async_session_scope() as session:
         return await get_active_subscription(session=session, user_id=user_id)
-
-
-# ============================================================================
-# Report cards (report-render-service's one read)
-# ============================================================================
-
-@router.get("/internal/db/reports/{report_id}/cards")
-async def get_cards_for_report(report_id: str, version_id: Optional[str] = None):
-    async with async_session_scope() as session:
-        result = await get_report_cards(report_id, session, version_id=version_id)
-        if not result.get("success"):
-            raise HTTPException(status_code=404, detail=result.get("error", "report not found"))
-        return result
-
-
-# ============================================================================
-# MCP API key resolution (token_auth.py's fallback path when a caller
-# authenticates with `Bearer caspr_mcp_...` instead of a JWT)
-# ============================================================================
-
-class ResolveMcpApiKeyRequest(BaseModel):
-    raw_key: str
-    touch_last_used: bool = True
-
-
-@router.post("/internal/db/mcp-api-key/resolve")
-async def resolve_mcp_api_key(data: ResolveMcpApiKeyRequest):
-    async with async_session_scope() as session:
-        user_id = await resolve_user_id_from_mcp_api_key(
-            data.raw_key, session, touch_last_used=data.touch_last_used,
-        )
-        if data.touch_last_used:
-            await session.commit()
-        return {"user_id": user_id}
 
 
 # ============================================================================

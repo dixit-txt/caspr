@@ -14,7 +14,6 @@ from opensearchpy import RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 from pydantic import BaseModel, Field
 from src.config.log_helper import setup_logging   
-from pandasai.llm import OpenAI as PandasAIOpenAI
 from botocore.config import Config
 from langchain_openai import ChatOpenAI
 from openai import OpenAI, AsyncOpenAI
@@ -226,7 +225,6 @@ def use_grep_file_search() -> bool:
 
 # OpenAI Constants
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-OPENAI_LLM = PandasAIOpenAI(api_token=OPENAI_API_KEY)
 OPENAI_CHAT_MODEL_ID = os.getenv("OPENAI_CHAT_MODEL_ID", "gpt-4o")
 OPENAI_LLM_LANGCHAIN = ChatOpenAI(api_key=OPENAI_API_KEY, 
                 model=OPENAI_CHAT_MODEL_ID,
@@ -280,8 +278,6 @@ HEYGEN_AVATAR_ID = os.getenv("HEYGEN_AVATAR_ID")
 HEYGEN_VOICE_ID = os.getenv("HEYGEN_VOICE_ID")
 HEYGEN_FOLDER_ID = os.getenv("HEYGEN_FOLDER_ID")
 
-CASPR_API_BASE_URL = os.getenv('CASPR_API_BASE_URL')
-CASPR_MCP_ALLOWED_HOSTS = os.getenv('CASPR_MCP_ALLOWED_HOSTS')
 REPORT_GEN_MESSAGE = "Your report has been generated successfully. You can download it."
 
 # ── Microservices split — base URLs for the services this monolith's code

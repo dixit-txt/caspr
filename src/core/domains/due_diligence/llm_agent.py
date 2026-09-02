@@ -44,7 +44,7 @@ from pydantic import Field, create_model
 
 from src.config.constants import DUE_DILIGENCE_MODEL
 from src.config.log_helper import setup_logging
-from src.core.llm_response_logger import save_raw_llm_response
+from src.core.observability.llm_response_logger import save_raw_llm_response
 
 logger = setup_logging(__name__)
 

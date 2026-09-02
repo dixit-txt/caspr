@@ -176,44 +176,12 @@ class User(Base):
     role = relationship("UserRole", back_populates="users", uselist=False)
     university = relationship("University", back_populates="users", uselist=False)
     research_interests = relationship("UserResearchInterest", back_populates="user", cascade="all, delete-orphan", lazy="dynamic")
-    mcp_api_key = relationship("McpApiKey", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id='{self.id}', user_name='{self.user_name}', email='{self.email}')>"
 
     def __str__(self):
         return f"{self.user_name} ({self.email})"
-
-
-class McpApiKey(Base):
-    """
-    One long-lived MCP API key per user.
-
-    The plaintext key is shown once at create/regenerate time and never stored.
-    Auth looks up by HMAC-SHA256 hash. Requests authenticated with this key run
-    as the owning user, so wallet/credits follow the normal Caspr workflow.
-    """
-    __tablename__ = "mcp_api_keys"
-
-    id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid7()), unique=True, nullable=False)
-    user_id = Column(
-        CHAR(36),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
-        nullable=False,
-        comment="Owning user (exactly one MCP API key per user)",
-    )
-    key_prefix = Column(String(24), nullable=False, comment="Non-secret prefix for UI display")
-    key_hash = Column(String(64), unique=True, nullable=False, index=True, comment="HMAC-SHA256 hex digest of the key")
-    last_four = Column(String(4), nullable=False, comment="Last 4 characters of the plaintext key")
-    last_used_at = Column(DateTime(timezone=True), nullable=True, comment="Last successful auth with this key")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    user = relationship("User", back_populates="mcp_api_key", uselist=False)
-
-    def __repr__(self):
-        return f"<McpApiKey(id='{self.id}', user_id='{self.user_id}', key_prefix='{self.key_prefix}')>"
 
 
 class UserResearchInterest(Base):
@@ -252,7 +220,6 @@ class Message(Base):
         updated_at (datetime): The timestamp when the message was last updated.
         is_deleted (bool): Whether the chat has been deleted by the user.
         deleted_at (datetime): The timestamp when the chat was deleted.
-        is_mcp (bool): Whether this chat was originated via an MCP API key.
 
     Relationships:
         user (User): Many-to-one relationship with the User table (the sender of the message).
@@ -269,7 +236,6 @@ class Message(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, comment="Timestamp when message was last updated")
     is_deleted = Column(Boolean, default=False, nullable=False, comment="Whether the chat has been deleted by the user")
     deleted_at = Column(DateTime(timezone=True), nullable=True, comment="Timestamp when the chat was deleted")
-    is_mcp = Column(Boolean, default=False, nullable=False, comment="Whether this chat was originated via an MCP API key")
     
     # Relationships
     user = relationship("User", back_populates="messages")
@@ -681,7 +647,7 @@ class CostTracker(Base):
         String(50),
         nullable=True,
         index=True,
-        comment="Stable user-facing functionality bucket (see src.core.functionality_context.Functionality), e.g. report_generation",
+        comment="Stable user-facing functionality bucket (see src.core.observability.functionality_context.Functionality), e.g. report_generation",
     )
     agent_name = Column(String(255), nullable=True, comment="Agent / stage that made the call")
     chat_id = Column(String(255), nullable=True, index=True, comment="Chat id associated with the call")

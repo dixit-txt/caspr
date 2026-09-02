@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.functionality_context import Functionality, label_for, normalize_functionality, remap_feature_label
+from src.core.observability.functionality_context import Functionality, label_for, normalize_functionality, remap_feature_label
 from src.db.database import CostTracker, Message, Report, ReportVersion, User
 from src.db.wallet_functions import get_active_subscription
 

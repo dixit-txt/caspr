@@ -3,7 +3,7 @@ Primary Research domain -- prompt blocks.
 
 These are appended/substituted into the card-generation prompt when the
 Primary Research domain is active.  They override the default blocks in
-``src.core.prompt_utils`` to enforce document-only sourcing, heavier table
+``src.core.prompts.prompt_utils`` to enforce document-only sourcing, heavier table
 usage, and data-centric tone.
 """
 

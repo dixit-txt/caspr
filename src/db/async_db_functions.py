@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
-from src.core.utils import prune_report_layout_async, verify_password
+from src.core.common.utils import prune_report_layout_async, verify_password
 from src.db.database import Card, Publish, User, Message, Report, Table, CardVersion, Subscriber, Request, CallBooking, ReportVersion, ReportVersionCard, RefinementHistory, AskCasprChat, CostTracker
 from src.db.enums import ReportStatus, RefinementType
 from src.db.db_utils import  sanitize_card_data
@@ -237,7 +237,6 @@ async def get_user_chat(user_id: str, chat_id: str, session: AsyncSession) -> Di
                 "message_citations": message.message_citations or {},
                 "created_at": message.created_at,
                 "updated_at": message.updated_at,
-                "is_mcp": message.is_mcp
             }
             return {
                 "success": True,
@@ -372,7 +371,6 @@ async def insert_chats(message_data: Dict[str, Any], session: AsyncSession) -> D
                 chat_messages=message_data.get('chat_messages'),
                 message_citations=message_data.get('message_citations'),
                 updated_at=message_data.get('updated_at'),
-                is_mcp=message_data.get('is_mcp', False),
                 id=chat_id
             )
             
@@ -711,7 +709,6 @@ async def get_user_chats(
     session: AsyncSession,
     limit: Optional[int] = None,
     offset: int = 0,
-    is_mcp: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Get chat list for a specific user_id.
@@ -731,13 +728,11 @@ async def get_user_chats(
         session (AsyncSession): SQLAlchemy async session.
         limit (Optional[int]): Max rows to return. ``None`` = no limit.
         offset (int): Rows to skip for pagination.
-        is_mcp (Optional[bool]): When set, filters to MCP-only (True) or
-            non-MCP-only (False) chats. ``None`` returns all chats.
 
     Returns:
         Dict[str, Any]: {"success": bool, "chats": [...]} or error dict.
     """
-    logger.info(f"Getting chat messages for user_id: {user_id} (limit={limit}, offset={offset}, is_mcp={is_mcp})")
+    logger.info(f"Getting chat messages for user_id: {user_id} (limit={limit}, offset={offset})")
 
     if not user_id:
         logger.error("Invalid user_id: empty value provided")
@@ -755,13 +750,10 @@ async def get_user_chats(
                 Message.updated_at,
                 Message.is_deleted,
                 Message.deleted_at,
-                Message.is_mcp,
             )
             .where(Message.user_id == user_id, Message.is_deleted.is_(False))
             .order_by(Message.updated_at.desc().nullslast())
         )
-        if is_mcp is not None:
-            stmt = stmt.where(Message.is_mcp.is_(is_mcp))
         if offset:
             stmt = stmt.offset(offset)
         if limit is not None:
@@ -782,7 +774,6 @@ async def get_user_chats(
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
                 "is_deleted": row.is_deleted,
                 "deleted_at": row.deleted_at.isoformat() if row.deleted_at else None,
-                "is_mcp": row.is_mcp,
             }
             for row in rows
         ]
@@ -2955,7 +2946,7 @@ async def get_chat_reports_and_cards(chat_id: int, session: AsyncSession) -> Dic
     report_list = []
 
     try:
-        # A chat can have multiple reports (retries, MCP reruns) — fetch all, newest first
+        # A chat can have multiple reports (retries, reruns) — fetch all, newest first
         stmt = select(Report).where(Report.chat_id == chat_id).order_by(Report.created_at.desc())
         result = await session.execute(stmt)
         reports = result.scalars().all()
@@ -3615,7 +3606,7 @@ async def insert_tables_from_updated_card(
         if not isinstance(content, str) or not content.strip():
             return []
         try:
-            from src.core.card_utils import extract_markdown_tables
+            from src.core.cards.card_utils import extract_markdown_tables
             return extract_markdown_tables(content) or []
         except Exception:
             return []
@@ -3885,7 +3876,7 @@ async def delete_card_or_subsection(session, card_id: str, subsection_id: Option
                     section_content += "\n\n"
             
             # Generate new summary using synchronous function
-            from src.core.card_utils import generate_section_summary
+            from src.core.cards.card_utils import generate_section_summary
             try:
                 new_summary = generate_section_summary(section_content)
                 logger.info(f"Successfully regenerated summary after subsection deletion for card {card_id}")
