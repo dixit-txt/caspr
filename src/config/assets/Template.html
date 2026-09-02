@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title }}</title>
+
+    
+    <style>
+        /* WeasyPrint Compatible CSS - Simplified and Fixed */
+
+        @font-face {
+            font-family: 'Calibri';
+            src: url('src/config/assets/fonts/fonnts.com-Calibri.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Calibri';
+            src: url('src/config/assets/fonts/fonnts.com-Calibri_Bold.otf') format('opentype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Calibri';
+            src: url('src/config/assets/fonts/fonnts.com-Calibri_Italic.otf') format('opentype');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Calibri';
+            src: url('src/config/assets/fonts/fonnts.com-Calibri_Bold_Italic.otf') format('opentype');
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Baskerville';
+            src: url('src/config/assets/fonts/LibreBaskerville-Regular.ttf') format('truetype');
+            font-weight: normal;    
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Baskerville';
+            src: url('src/config/assets/fonts/LibreBaskerville-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Baskerville';
+            src: url('src/config/assets/fonts/LibreBaskerville-Italic.ttf') format('truetype');
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        @font-face {
+            font-family: 'Inter';
+            src: url('assets/fonts/Inter_18pt-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'DejaVu Serif';
+            src: url('assets/fonts/DejaVuSerif.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+
+        
+        /* Page setup for PDF */
+        @page {
+            size: A4 !important;
+            margin-left : 0.5in!important;
+            margin-top: 1.2in !important;
+            margin-bottom: 1.2in !important;
+            margin-right:0.5in !important;
+            
+            /* Header */
+            @top-right {
+                content: element(page-header);
+            }
+            
+            /* Footer */
+            @bottom-left {
+                content: element(page-footer-left);
+            }
+            
+            @bottom-right {
+                content: element(page-footer-right);
+            }
+        }
+        
+        #page-header {
+            position: running(page-header);
+            text-align: right;
+            padding: 10pt 0pt;
+            white-space: nowrap;
+        }
+
+        .pdf-header-logo {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #374151;
+            margin-right: 4pt;
+            word-spacing:normal;
+            margin-left: 5pt;
+            font-family: 'Baskerville', sans-serif !important;
+        }
+
+ 
+
+
+
+        .red-box-heading {
+            font-size: 25px !important;
+            font-weight: bold !important;
+            color: rgb(89, 89, 89) !important;
+            background-color: rgb(242, 242, 242) !important;
+            padding: 20px !important;
+            padding-left: 80px !important;
+            padding-right: 80px !important;
+            padding-top: 50px !important;
+            text-align: left !important;
+            margin-top: 10px !important;
+            margin-bottom: 20px !important;
+            margin-left: -1in;
+            margin-right: -1in;
+            letter-spacing: 1px !important;
+            width: calc(100% + 1in); /* Adjusted to match content width */
+            box-sizing: border-box !important;
+            break-before: page;
+            font-family: 'Baskerville', sans-serif !important;
+            min-height: 150px !important;
+            /* Fix text wrapping */
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+
+        /* Make sure the content inside the heading wraps properly */
+        .red-box-heading span {
+            display: inline !important;
+            max-width: none;
+        }
+
+        .red-box-heading::after {
+            content: "";
+            display: block;
+            margin-top: 8px;
+            margin-left: 8px;
+            width: 100px;
+            height: 6px;
+            background-color: #E74746;
+            border-radius: 50px;
+        }
+
+
+
+   
+        .pdf-footer-left {
+            position: running(page-footer-left);
+            font-family: 'Calibri', sans-serif !important;
+        }
+
+        .footer-content-block {
+            display: inline-block;
+            vertical-align: middle;
+            white-space: nowrap; /* Keeps number + title on the same line */
+        }
+
+        .pdf-footer-page-number {
+            display: inline-block;
+            width: 30pt;
+            height: 30pt;
+            background-color: #e5e7eb;
+            color: rgb(89,89,89);
+            font-size: 9pt;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30pt;
+            vertical-align: middle;
+            counter-reset: page 1;
+        }
+
+        .pdf-footer-page-number::after {
+            content: counter(page);
+        }
+
+        .pdf-footer-title {
+            display: inline-block;
+            font-size: 7pt;
+            font-weight: bold;
+            color: rgb(89,89,89);
+            vertical-align: middle;
+            margin-left: 6pt; /* adjust spacing as needed */
+            font-family: 'Inter', sans-serif !important;
+        }
+
+
+        .pdf-footer-right {
+            position: running(page-footer-right);
+            font-size: 7pt;
+            color: #000;
+            font-family: 'Calibri', sans-serif !important;
+            line-height: 1.3;
+            text-align: right;
+        }
+
+        .footer-text {
+            font-family: 'Calibri', sans-serif !important;
+            font-weight: normal;
+            color: #000;
+        }
+
+        .pdf-footer-link {
+            font-family: 'Inter', sans-serif !important;
+            
+            color: #2563eb;  /* Tailwind blue-600 */
+            text-decoration: underline;
+            font-style: normal;
+        }
+
+        .pdf-watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 140pt;
+            font-weight: bold;
+            color: rgba(0, 0, 0, 0.05); /* Base color for "Caspr" */
+            z-index: 1;
+            pointer-events: none;
+            font-family: 'Baskerville', sans-serif !important;
+            white-space: nowrap;
+        }
+
+        .pdf-watermark .dot {
+            color: rgba(201, 16, 47, 0.1); /* 0.2 gives a soft, visible red */
+            font-family:'Times New Roman', Times, serif !important;
+            
+        }
+
+        h2.toc-heading + ul {
+        break-after: page;
+        page-break-after: always; /* fallback for older engines */
+        }
+
+
+
+        /* Hide PDF elements in normal view */
+        @media screen {
+            .pdf-header,
+            .pdf-footer-left,
+            .pdf-footer-right,
+            .pdf-watermark {
+                display: none;
+            }
+        }
+        
+        /* Base reset */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Typography */
+        body {
+            
+            font-family: 'DejaVu Serif', Calibri, sans-serif !important;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+            background-color: white;
+            margin: 0!important;
+            max-width: none !important;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            
+            font-weight: 600;
+            line-height: 1.3;
+            color: #022b5a;
+            page-break-after: avoid;
+            
+        }
+        
+        h1 {
+            font-family: 'Baskerville', 'Times New Roman', serif !important;
+            font-size: 24pt;
+            text-align: center;
+            margin-bottom: 16pt;
+            border-bottom: 2pt solid #022b5a;
+            padding-bottom: 8pt;
+        }
+        
+        h2 {
+            font-size: 18pt;
+            margin-bottom: 12pt;
+            margin-top: 20pt;
+            border-bottom: 1pt solid #ccc;
+            padding-bottom: 6pt;
+            font-family: 'DejaVu Serif', sans-serif !important;
+            color: #E74746 !important;
+        }
+        
+        h3 {
+            font-size: 14pt;
+            margin-bottom: 8pt;
+            margin-top: 16pt;
+            color: #E74746 !important;
+            font-family: 'DejaVu Serif', sans-serif !important;
+        }
+        
+        h4 {
+            font-size: 12pt;
+            margin-bottom: 6pt;
+            margin-top: 12pt;
+            color: #E74746 !important;
+            font-family: 'DejaVu Serif', sans-serif !important;
+        }
+        
+        p {
+            margin-bottom: 10pt;
+            text-align: justify;
+            orphans: 3;
+            widows: 3;
+            font-family:'DejaVu Serif',Baskerville, sans-serif !important;
+
+        }
+        
+        p em{
+            font-family: 'DejaVu Serif',Baskerville, sans-serif !important;
+            
+        }
+        
+        ul, ol {
+            margin-bottom: 10pt;
+            padding-left: 20pt;
+            font-family:'DejaVu Serif',Baskerville, sans-serif !important;
+        }
+        
+        li {
+            margin-bottom: 4pt;
+            font-family:'DejaVu Serif',Baskerville, sans-serif !important;
+        }
+
+        ul li a {
+            color: #000;
+            text-decoration: none; /* optional: remove underline */
+            font-family:'DejaVu Serif',Baskerville, sans-serif !important;
+        }
+
+        .toc-entry {
+            list-style-type: none;     /* Remove bullet */
+            margin-left: 0;            /* Optional: align with left edge */
+            padding-left: 0.5em;       /* Optional: slight indent for numbers */
+            font-family:'DejaVu Serif',Baskerville, sans-serif !important;
+        }
+
+        
+        sup a {
+            color: #89CFF0	 !important;  /* or your chosen color */
+            text-decoration: none;   /* optional: removes underline */
+        }
+        
+
+
+        .toc-heading {
+            font-size: 25px !important;
+            font-weight: bold !important;
+            color: rgb(89, 89, 89) !important;
+            background-color: rgb(242, 242, 242) !important;
+            padding: 20px !important;
+            padding-left: 80px !important;
+            padding-top: 50px !important;
+            text-align: left !important;
+            margin-top: 10px !important;
+            margin-bottom: 20px !important;
+            margin-left: -1in;
+            margin-right: -1in;
+            letter-spacing: 1px !important;
+            width: calc(100% + 5in); /* compensate for negative margins */
+            box-sizing: border-box !important;
+            font-family:'Baskerville', sans-serif !important;
+            transform: translateY(-40px)!important;
+            min-height: 150px !important;
+
+        }
+
+        .toc-heading::after {
+            content: "";
+            display: block;
+            margin-top: 8px;
+            margin-left: 8px;
+            width: 100px;
+            height: 6px;
+            background-color: #E74746;
+            border-radius: 50px;
+        }
+
+
+        
+
+        
+        /* Layout containers */
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: white;
+        }
+        
+        .page-section {
+            page-break-after: avoid;
+            min-height: 85vh;
+            padding: 20pt;
+            position: relative;
+        }
+        
+        .page-section:last-child {
+            page-break-after: avoid;
+        }
+        
+
+        
+        /* Title page - simplified layout */
+        .title-page {
+            text-align: left;
+            padding: 40pt;
+        }
+        
+        .title-accent {
+            width: 48pt;
+            height: 6pt;
+            background-color: #dc2626;
+            margin-bottom: 16pt;
+            border-radius: 50px;
+        }
+        
+        .title-main {
+            font-size: 30pt;
+            font-weight: bold;
+            color: rgb(89,89,89);
+            margin-bottom: 16pt;
+            line-height: 1.1;
+            text-align: left;
+            font-family: 'Inter', sans-serif !important;
+        }
+        
+        .title-subtitle {
+            font-size: 14pt;
+            color: RGB(0,0,0);
+            
+            margin-bottom: 30pt;
+            line-height: 1.3;
+            text-align: justify;
+            font-family: 'Calibri', sans-serif !important;
+        }
+        
+        .title-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8pt;
+            margin-bottom: 20pt;
+            font-family: 'Calibri', sans-serif;
+            padding: 0 10pt; /* add slight padding to keep left/right spacing tight */
+        }
+
+        .title-meta {
+            position: relative;
+        }
+
+        .title-meta-left {
+            position: absolute;
+            left: 1pt;
+            top: -10pt;
+        }
+
+        .title-meta-right {
+            position: absolute;
+            right: 1pt;
+            top: -10pt;
+        }
+
+
+        .meta-label {
+            font-weight: bold;
+            color: rgb(231, 71, 70);
+            font-family: 'Calibri', sans-serif !important;
+            font-weight: bold; /* red before colon */
+        }
+
+        .meta-value {
+            font-weight: normal;
+            color: rgb(0, 0, 0); /* black after colon */
+            font-family: 'Calibri', sans-serif !important;
+            font-weight: normal;
+        }
+
+
+
+        
+        .title-image {
+            
+            width: 100%;
+            max-width: 700pt; /* or match your content width */
+            margin: 8pt auto 12pt auto;
+            text-align: center;
+            color: #666;
+        }
+
+        .title-image img {
+            max-height: 300pt;
+            width: 100%;
+            height: auto; /* ⬅️ Keeps aspect ratio */
+            display: block;
+            margin: 0 auto;
+        }
+
+
+        .pdf-header-logo .dot {
+            color: #C9102F; /* Red dot */
+            font-family:'Times New Roman', Times, serif !important;
+            
+        }
+        
+        /* Content sections */
+        .content-section {
+            background-color: #fdfdfd;
+        }
+        
+        .content-text {
+            margin-top: 10pt;
+        }
+        
+        .content-text h1:first-child,
+        .content-text h2:first-child,
+        .content-text h3:first-child {
+            margin-top: 0;
+        }
+        
+        /* Images */
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 10pt auto;
+        }
+        
+        /* Tables */
+        .table-title {
+            font-size: 14pt;
+            font-weight: bold;
+            color:#000;
+            margin-bottom: 8pt;
+            font-family: 'DejaVu Serif', sans-serif !important;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12pt 0;
+            font-size: 10pt;
+            font-family: 'DejaVu Serif', sans-serif !important;
+            table-layout: fixed;
+            word-wrap: break-word;
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+        
+        th, td {
+            padding: 6pt 8pt;
+            text-align: left;
+            border-bottom: 1pt solid #ddd;
+            font-family: 'DejaVu Serif', sans-serif !important;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            hyphens: auto;
+        }
+        
+        /* Prevent table rows from breaking across pages */
+        tr {
+            break-inside: avoid;
+            page-break-inside: avoid; /* fallback for older engines */
+        }
+        
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            font-family: 'DejaVu Serif', sans-serif !important;
+        }
+        
+        /* Section titles */
+        .section-title {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #dc2626;
+            margin-bottom: 8pt;
+        }
+        
+        .section-accent {
+            width: 48pt;
+            height: 6pt;
+            background-color: #dc2626;
+            margin-bottom: 20pt;
+        }
+        
+        /* References */
+        .reference-item {
+            margin-bottom: 12pt;
+            page-break-inside: avoid;
+        }
+        
+        .reference-number {
+            color: #666;
+            margin-right: 8pt;
+            font-weight: bold;
+            float: left;
+            width: 20pt;
+        }
+        
+        .reference-link {
+            color: #1a6e9c;
+            text-decoration: underline;
+            word-break: break-all;
+            display: block;
+            margin-left: 20pt;
+        }
+        
+        /* Author profile - vertical layout */
+        .author-container {
+            margin-bottom: 24pt;
+            page-break-inside: avoid;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .author-stripe {
+            width: 100%;
+            height: 12pt;
+            background-color: #dc2626;
+            margin-bottom: 20pt;
+        }
+        
+        .author-content {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .author-image-container {
+            margin-bottom: 20pt;
+        }
+        
+        .author-image {
+            width: 120pt;
+            height: 120pt;
+            background-color: white; /* Transparent background */
+            border: 1pt  gray; /* Remove the border if you want a clean square */
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            /* No border-radius — keeps it square */
+        }
+
+        .author-image img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;       /* Makes image circular */
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+
+        
+        /* Fallback for when using default author image */
+        .default-author-image {
+            width: 60pt; /* Smaller than container to provide padding */
+            height: 60pt;
+            border-radius: 0; /* Keep original shape of the icon */
+            object-fit: contain; /* Don't stretch the icon */
+            opacity: 0.7; /* Slightly transparent for a professional look */
+        }
+        
+        .author-info {
+            width: 100%;
+            text-align: left;
+        }
+        
+        .author-info h3 {
+            color: #dc2626;
+            font-size: 18pt;
+            margin-bottom: 8pt;
+            text-align: left;
+        }
+        
+        .author-title {
+            color: #666;
+            font-style: italic;
+            margin-bottom: 16pt;
+            text-align: left;
+            font-size: 12pt;
+        }
+        
+        .author-details {
+            color: #333;
+            font-weight: bold;
+            text-align: left;
+            font-size: 11pt;
+            line-height: 1.5;
+        }
+        
+        
+        
+        .caspr-header h2 {
+            display: inline;
+            margin-right: 6pt;
+        }
+        
+        .caspr-dot {
+            width: 6pt;
+            height: 6pt;
+            background-color: #dc2626;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 4pt;
+        }
+        
+        .dot {
+            color: #C9102F;
+            font-family:'Times New Roman', Times, serif !important;
+        }
+        .disclaimer {
+            font-size: 9pt;
+            color: #b3d9ff;
+            line-height: 1.4;
+            margin-top: 20pt;
+        }
+        
+        .copyright {
+            text-align: center;
+            font-size: 9pt;
+            color: #b3d9ff;
+            margin-top: 24pt;
+        }
+        
+        /* Utility classes */
+        .clearfix::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+
+        
+
+
+        
+        /* Print optimizations */
+        @media print {
+            .page-section {
+                page-break-inside: avoid;
+            }
+            
+            h1, h2, h3, h4, h5, h6 {
+                page-break-after: avoid;
+            }
+            
+            p, li {
+                orphans: 3;
+                widows: 3;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="page-header" class="pdf-header">
+        <span class="pdf-header-logo">
+            Caspr<span class="dot">.</span>
+        </span>
+    </div>
+    
+
+    <div class="pdf-footer-left">
+        <div class="footer-content-block">
+          <span class="pdf-footer-page-number"></span>
+          <span class="pdf-footer-title">{{ report_title }}</span>
+        </div>
+      </div>
+      
+    <div class="pdf-footer-right">
+        <div class="footer-text">© 2025 Caspr Research Private Limited</div>
+        <div>
+            <a href="https://caspr.ai" target="_blank" class="pdf-footer-link">https://caspr.ai</a>
+        </div>
+    </div>
+    
+
+    
+
+      
+    <div class="container">
+        <!-- Title Page -->
+        <div class="page-section title-page">
+            <div class="title-accent"></div>
+            <h1 class="title-main">{{ report_title }}</h1>
+            <p class="title-subtitle">{{ report_subtitle }}</p>
+            
+            <div class="title-meta clearfix">
+                <div class="title-meta-left">
+                    <span class="meta-label">Published by:</span>
+                    <span class="meta-value">Caspr<span class="dot">.</span> Research</span>
+                </div>
+                <div class="title-meta-right">
+                    <span class="meta-label">Date:</span>
+                    <span class="meta-value">{{ report_date }}</span>
+                </div>
+            </div>
+            
+            
+            
+            
+            
+            <div class="title-image">
+                {% if title_image %}
+                <img src="{{ title_image }}" alt="Report Chart" />
+                {% else %}
+                [Chart/Image Placeholder]
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Content Section -->
+        <div class="page-section content-section">
+            <div class="content-text">
+                {{ content | safe }}
+            </div>
+        </div>
+        
+        <!-- References -->
+
+        
+        <!-- Author Profile -->
+
+        
+
+           
+        
+</body>
+</html> 

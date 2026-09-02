@@ -1,0 +1,527 @@
+{
+  "meta": {
+    "currency": "USD",
+    "unit_token_pricing": "per_1M_tokens",
+    "verified_as_of": "2026-07-30",
+    "sources": [
+      "https://developers.openai.com/api/docs/pricing",
+      "https://openai.com/api/pricing/",
+      "https://docs.anthropic.com/en/docs/about-claude/pricing",
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://docs.perplexity.ai/docs/getting-started/pricing"
+    ],
+    "notes": [
+      "Keys match exact model_name strings passed to save_raw_llm_response (or their resolved .env values).",
+      "Token pricing is standard (non-batch, non-priority) unless noted.",
+      "gpt-5.4-mini is the primary OpenAI model across CARD_GEN, QUERY_DOC, REFINER, CARD_FIX, GREP_COORDINATOR, PRIMARY_RESEARCH, DUE_DILIGENCE, FINDINGS, DASHBOARD, INFOGRAPHIC_CONTENT, VIZ_PLOT_CODE, GREP_AGENT, and SPECIALIZED_SEARCH when set in .env.",
+      "IMAGE_TO_TEXT_MODEL_ID is set to imagen-4.0-generate-001 in .env (same as image-gen); logged as that id.",
+      "nano-banana-pro-preview is Google's Gemini 3 Pro Image (aka gemini-3-pro-image / Nano Banana Pro).",
+      "dall-e-2 / dall-e-3: OpenAI API shutdown 2026-05-12 — migrate to gpt-image-2 (OPENAI_IMAGE_MODEL / REPORT_ILLUSTRATION_MODEL).",
+      "imagen-4.0-generate-001: Google shutdown 2026-08-17 — migrate to gemini-2.5-flash-image or nano-banana-pro-preview (GEMINI_HTML_MODEL / VISUALIZATION_MODEL).",
+      "Tool fees are separate from model token rates. See top-level `tools` for OpenAI built-in tools observed in faltu_chize/llm_raw_responses."
+    ]
+  },
+  "tools": {
+    "openai": {
+      "web_search": {
+        "billing": "per_call",
+        "cost_per_1k_calls": 10.0,
+        "cost_per_call": 0.01,
+        "notes": "GA `web_search` tool. Search content tokens are also billed at the host model rates (already counted in usage.input/output_tokens).",
+        "observed_in_samples_as": "usage.tool_usage.web_search.num_requests",
+        "source": "https://developers.openai.com/api/docs/pricing"
+      },
+      "web_search_preview": {
+        "billing": "per_call",
+        "cost_per_1k_calls_reasoning_models": 10.0,
+        "cost_per_1k_calls_non_reasoning_models": 25.0,
+        "notes": "Legacy preview tool. Prefer GA web_search rates when tool type is unknown.",
+        "source": "https://developers.openai.com/api/docs/pricing"
+      },
+      "file_search": {
+        "billing": "per_call_plus_storage",
+        "cost_per_1k_calls": 2.5,
+        "cost_per_call": 0.0025,
+        "storage_usd_per_gb_day": 0.1,
+        "storage_free_gb": 1.0,
+        "notes": "Not observed with nonzero counts in current raw-response dump; included because Responses API vector_store / file_search paths exist in code.",
+        "source": "https://developers.openai.com/api/docs/pricing"
+      },
+      "image_gen": {
+        "billing": "tokens",
+        "notes": "Responses API built-in image_gen tool. Tokens appear under usage.tool_usage.image_gen; price those tokens like gpt-image-2 (text/image in, image out). Samples in dump had all zeros.",
+        "same_rates_as_model": "gpt-image-2",
+        "observed_in_samples_as": "usage.tool_usage.image_gen",
+        "source": "https://developers.openai.com/api/docs/pricing"
+      },
+      "code_interpreter_container": {
+        "billing": "per_container_session",
+        "notes": "Hosted Shell / Code Interpreter container pricing varies by RAM (e.g. 1GB $0.03 per 20-min session). Not seen in current raw dump.",
+        "source": "https://developers.openai.com/api/docs/pricing"
+      }
+    },
+    "perplexity": {
+      "sonar_request_fee": {
+        "billing": "per_request",
+        "notes": "Already encoded on sonar-pro model entry as request_fee_per_1k. Samples carry usage.search_context_size (low/medium/high).",
+        "observed_in_samples_as": "usage.usage.search_context_size",
+        "source": "https://docs.perplexity.ai/docs/getting-started/pricing"
+      }
+    },
+    "google": {
+      "grounding_with_google_search": {
+        "billing": "per_grounded_prompt_after_free_quota",
+        "cost_per_1k_grounded_prompts": 14.0,
+        "free_prompts_per_month": 5000,
+        "notes": "Gemini 3 family shared free quota then $14/1k. Not separately broken out in current logger payloads.",
+        "source": "https://ai.google.dev/gemini-api/docs/pricing"
+      }
+    }
+  },
+  "models": {
+    "gpt-4o": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 2.5,
+      "cached_input_per_1m": 1.25,
+      "output_per_1m": 10.0,
+      "call_sites_approx": [
+        "card_utils.generate_drl (DRL_GEN_MODEL)",
+        "card_utils.generate_section_summary (CARD_SUMMARY_MODEL)",
+        "card_utils.generate_summary_for_ask_caspr",
+        "card_utils.generate_cumulative_summary",
+        "card_utils.refine_cumulative_summary",
+        "card_utils.choosse_the_best_plot_type_openai_fallback (PLOT_TYPE_MODEL)",
+        "card_utils.refine_report_layout (REFINE_REPORT_LAYOUT_MODEL)",
+        "model.retrieve_latest_info (RETRIEVE_LATEST_INFO_MODEL)",
+        "model.insufficient_balance_fallback",
+        "model.normal_flow_fallback",
+        "model.generate_chat_title_openai (CHAT_TITLE_MODEL)",
+        "model.generate_chat_title_naive_fallback",
+        "viz_pipeline / dynamic_prompting / table_fixer / helper_functions fallbacks",
+        "executive_summary_updater (openai paths)",
+        "publish_utils.report_textual_analysis (REPORT_TEXTUAL_ANALYSIS_MODEL)",
+        "grep_agent_2 worker/summarizer (GREP_WORKER_MODEL / GREP_SUMMARY_MODEL)",
+        "OPENAI_CHAT_MODEL_ID default LangChain chat",
+        "html_*_refine OPENAI_VALIDATION_MODEL",
+        "poster_generator / helper_functions title sanitizer",
+        "content_processor sector_name / refine_table_policy"
+      ]
+    },
+    "gpt-4.1": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 2.0,
+      "cached_input_per_1m": 0.5,
+      "output_per_1m": 8.0,
+      "call_sites_approx": [
+        "sp_web_search_Mcp (SPECIALIZED_SEARCH_MODEL when set to gpt-4.1)"
+      ]
+    },
+    "gpt-4.1-mini": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 0.4,
+      "cached_input_per_1m": 0.1,
+      "output_per_1m": 1.6,
+      "call_sites_approx": [
+        "grep_agent_2 synthesis metadata (GREP_SYNTHESIS_MODEL default)"
+      ]
+    },
+    "gpt-4.1-nano": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 0.1,
+      "cached_input_per_1m": 0.025,
+      "output_per_1m": 0.4,
+      "call_sites_approx": []
+    },
+    "gpt-4.1-2025-04-14": {
+      "provider": "openai",
+      "billing": "tokens",
+      "same_as": "gpt-4.1"
+    },
+    "gpt-4.1-mini-2025-04-14": {
+      "provider": "openai",
+      "billing": "tokens",
+      "same_as": "gpt-4.1-mini"
+    },
+    "gpt-4.1-nano-2025-04-14": {
+      "provider": "openai",
+      "billing": "tokens",
+      "same_as": "gpt-4.1-nano"
+    },
+    "gpt-4o-mini": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 0.15,
+      "cached_input_per_1m": 0.075,
+      "output_per_1m": 0.6,
+      "call_sites_approx": [
+        "card_utils.compress_context_summary (COMPRESS_CONTEXT_SUMMARY_MODEL)",
+        "card_utils.generate_title_for_table (GENERATE_TITLE_FOR_TABLE_MODEL)",
+        "content_processor.extract_sector_name (SECTOR_NAME_MODEL)",
+        "refine_table_policy.classify_visualization_intent (REFINE_TABLE_POLICY_MODEL)",
+        "token_checker.count_pdf_tokens (TOKEN_CHECKER_MODEL)",
+        "table_fixer OpenAI fallback (TABLE_FIXER_MODEL)",
+        "viz_pipeline table decision backup (TABLE_DICISION_MODEL)",
+        "viz_pipeline image validation (OPENAI_VALIDATION_MODEL)",
+        "dynamic_prompting backup (PLOT_TYPE_MODEL)",
+        "report_infographic MD optimizer (MD_OPTIMIZER_MODEL)",
+        "helper_functions publish CSS backup (PUBLISH_CSS_MODEL)",
+        "helper_functions title sanitizer (TITLE_SANITIZER_MODEL)",
+        "poster_generator classifier/sanitizer (POSTER_CLASSIFIER_MODEL / TITLE_SANITIZER_MODEL)"
+      ]
+    },
+    "gpt-5.1": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 1.25,
+      "cached_input_per_1m": 0.125,
+      "output_per_1m": 10.0,
+      "call_sites_approx": ["viz_pipeline.generate_plot_code_openai_fallback (VIZ_PLOT_CODE_MODEL)"]
+    },
+    "gpt-5.2": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 1.75,
+      "cached_input_per_1m": 0.175,
+      "output_per_1m": 14.0,
+      "call_sites_approx": [
+        "one_pager.get_infographic_content (INFOGRAPHIC_CONTENT_MODEL)",
+        "content_processor.extract_findings (FINDINGS_MODEL)",
+        "content_processor.extract_dashboard (DASHBOARD_MODEL)"
+      ]
+    },
+    "gpt-5.4": {
+      "provider": "openai",
+      "billing": "tokens",
+      "context_tier_threshold_tokens": 272000,
+      "input_per_1m": 2.5,
+      "cached_input_per_1m": 0.25,
+      "output_per_1m": 15.0,
+      "input_per_1m_leq_threshold": 2.5,
+      "cached_input_per_1m_leq_threshold": 0.25,
+      "output_per_1m_leq_threshold": 15.0,
+      "input_per_1m_gt_threshold": 5.0,
+      "cached_input_per_1m_gt_threshold": 0.5,
+      "output_per_1m_gt_threshold": 22.5,
+      "notes": "Short context <= 272K tokens; long context > 272K per OpenAI pricing page.",
+      "call_sites_approx": [
+        "card_utils.generate_cards.* (CARD_GEN_MODEL_OPENAI when gpt-5.4)",
+        "card_utils.stream_brief_chunks",
+        "model.query_document_openai (QUERY_DOC_MODEL when gpt-5.4)",
+        "grep_agent_2.coordinator (GREP_COORDINATOR_MODEL when gpt-5.4)"
+      ]
+    },
+    "gpt-5.4-mini": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 0.75,
+      "cached_input_per_1m": 0.075,
+      "output_per_1m": 4.5,
+      "notes": "Primary OpenAI model in current .env for card gen, query doc, refiner, card fix, grep coordinator, primary research, due diligence, findings, dashboard, infographic content, viz plot code, grep agent v1, and specialized search.",
+      "call_sites_approx": [
+        "card_utils.generate_cards.* (CARD_GEN_MODEL_OPENAI)",
+        "card_utils.stream_brief_chunks",
+        "card_fixer.fix_content_openai / fix_card_openai (CARD_FIX_MODEL)",
+        "model.query_document_openai (QUERY_DOC_MODEL)",
+        "refiner.* OpenAI paths (REFINER_MODEL)",
+        "ask_caspr main (ASK_CASPR_MODEL_MAIN when set)",
+        "primary_research.graph.analyze_document (PRIMARY_RESEARCH_MODEL)",
+        "due_diligence llm_agent (DUE_DILIGENCE_MODEL)",
+        "grep_agent_2.coordinator (GREP_COORDINATOR_MODEL)",
+        "content_processor.extract_findings (FINDINGS_MODEL)",
+        "content_processor.extract_dashboard (DASHBOARD_MODEL)",
+        "one_pager.get_infographic_content (INFOGRAPHIC_CONTENT_MODEL)",
+        "viz_pipeline.generate_plot_code_openai_fallback (VIZ_PLOT_CODE_MODEL)",
+        "grep_agent.llm_interface (GREP_AGENT_MODEL)",
+        "sp_web_search_Mcp (SPECIALIZED_SEARCH_MODEL)"
+      ]
+    },
+    "gpt-5.4-mini-2026-03-17": {
+      "provider": "openai",
+      "billing": "tokens",
+      "same_as": "gpt-5.4-mini"
+    },
+    "gpt-5.4-nano": {
+      "provider": "openai",
+      "billing": "tokens",
+      "input_per_1m": 0.2,
+      "cached_input_per_1m": 0.02,
+      "output_per_1m": 1.25,
+      "call_sites_approx": []
+    },
+    "gpt-5.5": {
+      "provider": "openai",
+      "billing": "tokens",
+      "context_tier_threshold_tokens": 1000000,
+      "input_per_1m": 5.0,
+      "cached_input_per_1m": 0.5,
+      "output_per_1m": 30.0,
+      "input_per_1m_leq_threshold": 5.0,
+      "cached_input_per_1m_leq_threshold": 0.5,
+      "output_per_1m_leq_threshold": 30.0,
+      "input_per_1m_gt_threshold": 10.0,
+      "cached_input_per_1m_gt_threshold": 1.0,
+      "output_per_1m_gt_threshold": 45.0,
+      "notes": "Short context <= 1M tokens; long context > 1M per OpenAI pricing page.",
+      "call_sites_approx": ["grep_agent.llm_interface (GREP_AGENT_MODEL)", "sp_web_search_Mcp (SPECIALIZED_SEARCH_MODEL when gpt-5.5)"]
+    },
+    "sonar-pro": {
+      "provider": "perplexity",
+      "billing": "tokens_plus_request_fee",
+      "input_per_1m": 3.0,
+      "output_per_1m": 15.0,
+      "request_fee_per_1k": {
+        "low_context": 6.0,
+        "medium_context": 10.0,
+        "high_context": 14.0
+      },
+      "pro_search_request_fee_per_1k": {
+        "low_context": 14.0,
+        "medium_context": 18.0,
+        "high_context": 22.0
+      },
+      "call_sites_approx": [
+        "card_utils.*_perplexity",
+        "executive_summary_updater.*_perplexity",
+        "refiner.refine_card_perplexity"
+      ]
+    },
+    "claude-sonnet-4-6": {
+      "provider": "anthropic",
+      "billing": "tokens",
+      "input_per_1m": 3.0,
+      "cache_write_5m_per_1m": 3.75,
+      "cache_write_1h_per_1m": 6.0,
+      "cache_hit_per_1m": 0.3,
+      "output_per_1m": 15.0,
+      "resolved_from": "ANTHROPIC_MODEL_ID",
+      "call_sites_approx": [
+        "card_utils.choosse_the_best_plot_type",
+        "viz_pipeline / dynamic_prompting Anthropic paths",
+        "table_fixer.fix_table",
+        "helper_functions.generate_css",
+        "model.insufficient_balance / normal_flow",
+        "model.generate_chat_title",
+        "viz_pipeline.generate_mermaid_viz_fallback",
+        "html_graph_maker.invoke_with_fallback",
+        "html_table_visualizer.invoke_info_with_fallback",
+        "html_graph_maker_refine / html_table_visualizer_refine"
+      ]
+    },
+    "claude-opus-4-6": {
+      "provider": "anthropic",
+      "billing": "tokens",
+      "input_per_1m": 5.0,
+      "cache_write_5m_per_1m": 6.25,
+      "cache_write_1h_per_1m": 10.0,
+      "cache_hit_per_1m": 0.5,
+      "output_per_1m": 25.0,
+      "resolved_from": "ANTHROPIC_OPUS_4_MODEL_ID",
+      "call_sites_approx": [
+        "report_infographic.optimized_md_to_infographic_html"
+      ]
+    },
+    "gemini-2.5-flash": {
+      "provider": "google",
+      "billing": "tokens",
+      "input_per_1m": 0.3,
+      "input_audio_per_1m": 1.0,
+      "output_per_1m": 2.5,
+      "cached_input_per_1m": 0.03,
+      "aliases": ["models/gemini-2.5-flash"],
+      "call_sites_approx": [
+        "gemini_card_utils.* (GEMINI_CARD_MODEL)",
+        "ask_caspr.gemini_fallback (ASK_CASPR_MODEL_FALLBACK)"
+      ]
+    },
+    "models/gemini-2.5-flash": {
+      "provider": "google",
+      "billing": "tokens",
+      "same_as": "gemini-2.5-flash",
+      "input_per_1m": 0.3,
+      "output_per_1m": 2.5,
+      "resolved_from": "ASK_CASPR_MODEL_FALLBACK"
+    },
+    "gemini-3.1-pro-preview": {
+      "provider": "google",
+      "billing": "tokens",
+      "context_tier_threshold_tokens": 200000,
+      "input_per_1m_leq_200k": 2.0,
+      "input_per_1m_gt_200k": 4.0,
+      "output_per_1m_leq_200k": 12.0,
+      "output_per_1m_gt_200k": 18.0,
+      "cached_input_per_1m_leq_200k": 0.2,
+      "cached_input_per_1m_gt_200k": 0.4,
+      "notes": "Output price includes thinking tokens. Long-context rates apply when prompt > 200k tokens. Context cache storage: $4.50 / 1M tokens per hour.",
+      "call_sites_approx": [
+        "html_graph_maker / html_table_visualizer Gemini backup (GEMINI_HTML_MODEL)",
+        "html_*_refine Gemini backup fallback",
+        "report_infographic.optimized_md_to_infographic_html (Gemini fallback)"
+      ]
+    },
+    "nano-banana-pro-preview": {
+      "provider": "google",
+      "billing": "tokens_and_image_output",
+      "canonical_model_id": "gemini-3-pro-image",
+      "also_known_as": ["Nano Banana Pro", "Gemini 3 Pro Image"],
+      "input_text_image_per_1m": 2.0,
+      "output_text_thinking_per_1m": 12.0,
+      "output_image_per_1m": 120.0,
+      "approx_cost_per_1k_2k_image_usd": 0.134,
+      "approx_cost_per_4k_image_usd": 0.24,
+      "image_output_tokens_1k_2k": 1120,
+      "image_output_tokens_4k": 2000,
+      "resolved_from": "VISUALIZATION_MODEL",
+      "call_sites_approx": [
+        "card_utils.generate_table_visualization_gemini",
+        "refiner.gemini_image_gen",
+        "viz_refine.gemini_image_gen",
+        "one_pager.create_infographic_gemini"
+      ]
+    },
+    "imagen-4.0-generate-001": {
+      "provider": "google",
+      "billing": "per_image",
+      "cost_per_image_usd": 0.04,
+      "tier": "standard",
+      "related_tiers": {
+        "imagen-4.0-fast-generate-001": 0.02,
+        "imagen-4.0-generate-001": 0.04,
+        "imagen-4.0-ultra-generate-001": 0.06
+      },
+      "notes": "Deprecated; Google lists shutdown 2026-08-17. Migrate to gemini-2.5-flash-image or gemini-3-pro-image (nano-banana-pro-preview).",
+      "status": "deprecated",
+      "shutdown_date": "2026-08-17",
+      "migrate_to": ["gemini-2.5-flash-image", "gemini-3-pro-image", "nano-banana-pro-preview"],
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "resolved_from": ["IMAGE_GEN_MODEL", "TEXT_TO_IMAGE_MODEL_ID", "IMAGE_TO_TEXT_MODEL_ID"],
+      "call_sites_approx": [
+        "helper_functions.google_image_gen*",
+        "poster_generator.gemini_image_gen",
+        "publish_utils.generate_poster_images",
+        "publish_utils.generate_poster_prompt_from_image (logged model id; env points at imagen)"
+      ]
+    },
+    "gpt-image-2": {
+      "provider": "openai",
+      "billing": "tokens",
+      "text_input_per_1m": 5.0,
+      "cached_text_input_per_1m": 1.25,
+      "image_input_per_1m": 8.0,
+      "cached_image_input_per_1m": 2.0,
+      "image_output_per_1m": 30.0,
+      "approx_cost_per_1024_image_usd": {
+        "low": 0.006,
+        "medium": 0.053,
+        "high": 0.211
+      },
+      "resolved_from": "OPENAI_IMAGE_MODEL",
+      "call_sites_approx": [
+        "helper_functions.cover_image_gen*",
+        "poster_generator.openai_image_gen"
+      ]
+    },
+    "dall-e-2": {
+      "provider": "openai",
+      "billing": "per_image",
+      "cost_per_image_usd": {
+        "256x256": 0.016,
+        "512x512": 0.018,
+        "1024x1024": 0.02
+      },
+      "status": "deprecated",
+      "shutdown_date": "2026-05-12",
+      "migrate_to": ["gpt-image-2", "gpt-image-1-mini"],
+      "source": "https://developers.openai.com/api/docs/deprecations",
+      "call_sites_approx": [
+        "one_pager.create_infographic_with_openai (INFOGRAPHIC_DALLE2_MODEL)"
+      ]
+    },
+    "dall-e-3": {
+      "provider": "openai",
+      "billing": "per_image",
+      "cost_per_image_usd": {
+        "standard_1024x1024": 0.04,
+        "standard_1024x1792_or_1792x1024": 0.08,
+        "hd_1024x1024": 0.08,
+        "hd_1024x1792_or_1792x1024": 0.12
+      },
+      "status": "deprecated",
+      "shutdown_date": "2026-05-12",
+      "migrate_to": ["gpt-image-2", "gpt-image-1-mini"],
+      "source": "https://developers.openai.com/api/docs/deprecations",
+      "call_sites_approx": ["one_pager.generate_image_with_openai (REPORT_ILLUSTRATION_MODEL)"]
+    },
+    "gemini-3.5-flash": {
+      "provider": "google",
+      "billing": "tokens",
+      "input_per_1m": 1.5,
+      "cached_input_per_1m": 0.15,
+      "cached_storage_per_1m_per_hour": 1.0,
+      "output_per_1m": 9.0,
+      "notes": "Output price includes thinking tokens. Official Gemini Developer API standard tier (global).",
+      "resolved_from": "GEMINI_ES_MODEL_ID",
+      "call_sites_approx": [
+        "executive_summary_updater.check_update_required_gemini",
+        "executive_summary_updater.update_summary_gemini",
+        "card_fixer.fix_content_gemini",
+        "card_fixer.fix_card_gemini",
+        "card_utils.generate_drl (Gemini fallback, ex-Perplexity)",
+        "card_utils.generate_section_summary (Gemini fallback, ex-Perplexity)",
+        "card_utils.generate_summary_for_ask_caspr (Gemini fallback, ex-Perplexity)",
+        "card_utils.generate_cumulative_summary (Gemini fallback, ex-Perplexity)",
+        "card_utils.refine_cumulative_summary (Gemini fallback, ex-Perplexity)",
+        "card_utils.refine_report_layout (Gemini fallback, ex-Perplexity)",
+        "refiner.generate_refined_content (Gemini fallback, ex-Perplexity)"
+      ]
+    },
+    "gemini-3.1-flash-lite": {
+      "provider": "google",
+      "billing": "tokens",
+      "input_per_1m": 0.25,
+      "input_audio_per_1m": 0.5,
+      "cached_input_per_1m": 0.025,
+      "output_per_1m": 1.5,
+      "notes": "Output price includes thinking tokens. Standard paid tier (text/image/video input). Source: ai.google.dev/gemini-api/docs/pricing (verified 2026-07-17).",
+      "call_sites_approx": [
+        "executive_summary_updater.check_update_required_gemini (GEMINI_ES_MODEL_ID fallback)",
+        "executive_summary_updater.update_summary_gemini (GEMINI_ES_MODEL_ID fallback)",
+        "card_fixer.fix_content_gemini (GEMINI_ES_MODEL_ID fallback)",
+        "card_fixer.fix_card_gemini (GEMINI_ES_MODEL_ID fallback)"
+      ]
+    }
+  },
+  "unique_model_ids_logged": [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4.1-2025-04-14",
+    "gpt-4.1-mini-2025-04-14",
+    "gpt-4.1-nano-2025-04-14",
+    "gpt-5.1",
+    "gpt-5.2",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-mini-2026-03-17",
+    "gpt-5.4-nano",
+    "gpt-5.5",
+    "sonar-pro",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6",
+    "gemini-2.5-flash",
+    "models/gemini-2.5-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "nano-banana-pro-preview",
+    "imagen-4.0-generate-001",
+    "gpt-image-2",
+    "dall-e-2",
+    "dall-e-3"
+  ]
+}
