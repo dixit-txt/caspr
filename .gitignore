@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+*.log
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*issues.md
+/test
+*.cursorignore
