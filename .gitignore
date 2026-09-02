@@ -9,3 +9,4 @@ venv/
 *issues.md
 /test
 *.cursorignore
+*.ipynb
