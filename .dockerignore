@@ -7,6 +7,7 @@ venv/
 # baked into an image layer.
 .env
 .env.*
+!.env.example
 
 .git/
 .gitignore
@@ -20,3 +21,20 @@ __pycache__/
 Dockerfile
 .dockerignore
 README.md
+
+# ── tool caches ────────────────────────────────────────────────────────────
+.mypy_cache
+
+# ── tests and dev-only material: not shipped, and they invalidate the layer
+# ── on every edit. db_migrations/ and alembic.ini are deliberately NOT here —
+# ── this is the only service that owns Postgres, and the image is what runs
+# ── `alembic upgrade head`.
+tests
+*.ipynb
+.ipynb_checkpoints
+
+# ── editor / OS ────────────────────────────────────────────────────────────
+.vscode
+.idea
+.cursorignore
+.DS_Store

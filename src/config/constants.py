@@ -280,12 +280,31 @@ HEYGEN_FOLDER_ID = os.getenv("HEYGEN_FOLDER_ID")
 
 REPORT_GEN_MESSAGE = "Your report has been generated successfully. You can download it."
 
-# ── Microservices split — base URLs for the services this monolith's code
-# now calls over HTTP instead of in-process. See src/core/grep_agent_2/__init__.py,
+# ── Microservices split — base URLs for the services this code now calls over
+# HTTP instead of in-process. See src/core/grep_agent_2/__init__.py,
 # src/core/report_util/entry_point.py, src/core/infographics/one_pager.py,
-# and src/core/pptx_utils.py for the shim call sites.
-GREP_SERVICE_BASE_URL = os.getenv("GREP_SERVICE_BASE_URL", "http://grep-service:8010")
-REPORT_RENDER_SERVICE_BASE_URL = os.getenv("REPORT_RENDER_SERVICE_BASE_URL", "http://report-render-service:8020")
+# and src/core/report_util/pptx_utils.py for the shim call sites.
+#
+# The defaults are the LOCAL ones (`uv run uvicorn ...` on this laptop), not
+# Docker DNS names. `http://grep-service:8010` and
+# `http://report-render-service:8020` were the previous defaults and resolve
+# nowhere outside a compose network that happens to use those aliases — and
+# the folders are now named file-handling and render-report, so those names
+# were wrong in compose too. Docker Compose sets these explicitly
+# (docker-compose.yml at the workspace root) to http://file-handling:8010 and
+# http://render-report:8020; anything else falls back to localhost, which is
+# right for a developer running four uvicorns.
+GREP_SERVICE_BASE_URL = os.getenv("GREP_SERVICE_BASE_URL", "http://localhost:8010")
+REPORT_RENDER_SERVICE_BASE_URL = os.getenv("REPORT_RENDER_SERVICE_BASE_URL", "http://localhost:8020")
+
+# Shared secret proving to a sibling service that an /internal/* caller is us
+# (render-report/src/resources/dependencies.py checks it as the
+# `x-internal-secret` header). Empty in local development, where render-report
+# skips the check so a plain curl works; render-report refuses to boot with it
+# unset in production. The shims send the header only when this is set, so
+# turning internal auth on is a matter of setting one variable on both sides —
+# see src/core/report_util/entry_point.py.
+INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET", "")
 
 # Chat Title Prompt
 class ChatTitle(BaseModel):

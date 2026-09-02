@@ -23,6 +23,7 @@ from src.core.integrations.s3_utils import get_s3_instance, build_report_s3_pref
 from src.config.log_helper import setup_logging
 from src.config.constants import S3_REPORTS_BASE_PATH, REPORT_RENDER_SERVICE_BASE_URL
 from src.core.cards.card_utils import convert_json_to_md, extract_markdown_tables
+from src.core.common.internal_auth import internal_headers
 from src.core.common.utils import extract_content
 
 logger = setup_logging(__file__)
@@ -399,6 +400,7 @@ async def generate_pptx_and_upload_s3(
         resp = await client.post(
             f"{REPORT_RENDER_SERVICE_BASE_URL}/internal/render/presentation",
             json=payload,
+            headers=internal_headers(),
         )
     resp.raise_for_status()
     return resp.json()["s3_uri"]

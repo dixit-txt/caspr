@@ -23,6 +23,7 @@ import httpx
 
 from src.config.constants import REPORT_RENDER_SERVICE_BASE_URL
 from src.config.log_helper import setup_logging
+from src.core.common.internal_auth import internal_headers
 
 logger = setup_logging(__name__)
 
@@ -65,6 +66,7 @@ async def generate_report_output(
         resp = await client.post(
             f"{REPORT_RENDER_SERVICE_BASE_URL}/internal/render/report-output",
             json=payload,
+            headers=internal_headers(),
         )
     resp.raise_for_status()
     return resp.json()

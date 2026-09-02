@@ -20,6 +20,7 @@ import httpx
 
 from src.config.constants import REPORT_RENDER_SERVICE_BASE_URL
 from src.config.log_helper import setup_logging
+from src.core.common.internal_auth import internal_headers
 
 logger = setup_logging(__name__)
 
@@ -57,6 +58,7 @@ def generate_one_pager(
     resp = httpx.post(
         f"{REPORT_RENDER_SERVICE_BASE_URL}/internal/render/infographic",
         json=payload,
+        headers=internal_headers(),
         timeout=_TIMEOUT,
     )
     resp.raise_for_status()
