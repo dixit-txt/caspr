@@ -951,7 +951,20 @@ async def generate_report(
         result_data = generation_result["data"]
         s3_results = result_data["s3_paths"]
         attachment_data = result_data["attachment_data"]
-        final_report_generation_time = result_data["report_generation_time"]
+        # Render-service JSON may leave this as an ISO string.
+        raw_generation_time = result_data.get("report_generation_time")
+        if isinstance(raw_generation_time, datetime):
+            final_report_generation_time = raw_generation_time
+        elif isinstance(raw_generation_time, str):
+            final_report_generation_time = datetime.fromisoformat(
+                raw_generation_time.replace("Z", "+00:00")
+            )
+        else:
+            logger.warning(
+                f"report_generation_time missing/unparseable ({raw_generation_time!r}) "
+                f"for report_id: {report_id}; falling back to current time"
+            )
+            final_report_generation_time = datetime.now(UTC)
         poster_image_url = result_data["poster_image_url"]
 
         uploaded_file_types = []

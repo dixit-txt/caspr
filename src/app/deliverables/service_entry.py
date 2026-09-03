@@ -18,6 +18,7 @@ fails loudly instead of silently doing nothing.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -70,7 +71,30 @@ async def generate_report_output(
             headers=internal_headers(),
         )
     resp.raise_for_status()
-    return resp.json()
+    return restore_report_output_datetimes(resp.json())
+
+
+def restore_report_output_datetimes(payload: dict[str, Any]) -> dict[str, Any]:
+    """JSON cannot carry datetime; parse ISO strings back to the old contract.
+
+    router_reports.py still calls ``report_generation_time.isoformat()``. After the
+    render-service split that field arrives as a string and a successful
+    PDF was being marked ERROR_GENERATION_REPORT.
+    """
+    data = payload.get("data")
+    if isinstance(data, dict) and "report_generation_time" in data:
+        data["report_generation_time"] = parse_iso_datetime(
+            data["report_generation_time"]
+        )
+    return payload
+
+
+def parse_iso_datetime(value: Any) -> Any:
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
 
 
 def process_report_cards(*args, **kwargs):
