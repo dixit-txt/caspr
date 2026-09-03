@@ -38,3 +38,10 @@ tests
 .idea
 .cursorignore
 .DS_Store
+
+# .python-version selects which interpreter uv runs locally (R-UV-5). Inside
+# the image the base layer *is* the interpreter, and pinning 3.14.5 here makes
+# uv reject python:3.14-slim's 3.14.7 outright rather than accept it as
+# satisfying requires-python = ">=3.14.5". The file stays committed and still
+# governs local development and CI; it just has no meaning in the container.
+.python-version

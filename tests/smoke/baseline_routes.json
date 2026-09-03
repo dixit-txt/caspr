@@ -1,0 +1,1411 @@
+{
+  "operation_count": 134,
+  "operations": {
+    "DELETE /internal/db/grep/vector-store-files": {
+      "parameters": [
+        "query:file_version_id",
+        "query:user_vector_store_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/by-feature": {
+      "parameters": [
+        "query:end_date",
+        "query:limit",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/by-functionality": {
+      "parameters": [
+        "query:end_date",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/by-model": {
+      "parameters": [
+        "query:end_date",
+        "query:limit",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/by-user": {
+      "parameters": [
+        "query:end_date",
+        "query:limit",
+        "query:range",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/summary": {
+      "parameters": [
+        "query:end_date",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/costs/timeseries": {
+      "parameters": [
+        "query:end_date",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/me": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": ""
+      }
+    },
+    "GET /api/v1/admin/overview": {
+      "parameters": [
+        "query:end_date",
+        "query:range",
+        "query:start_date",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/reports/{report_id}/versions": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users": {
+      "parameters": [
+        "query:active_only",
+        "query:end_date",
+        "query:page",
+        "query:page_size",
+        "query:q",
+        "query:range",
+        "query:sort",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/active": {
+      "parameters": [
+        "query:end_date",
+        "query:include_list",
+        "query:page",
+        "query:page_size",
+        "query:range",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/search": {
+      "parameters": [
+        "query:limit",
+        "query:q"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/{user_id}/chats": {
+      "parameters": [
+        "path:user_id",
+        "query:end_date",
+        "query:limit",
+        "query:range",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/{user_id}/chats/{chat_id}/costs": {
+      "parameters": [
+        "path:chat_id",
+        "path:user_id",
+        "query:end_date",
+        "query:range",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/{user_id}/chats/{chat_id}/reports": {
+      "parameters": [
+        "path:chat_id",
+        "path:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/admin/users/{user_id}/summary": {
+      "parameters": [
+        "path:user_id",
+        "query:end_date",
+        "query:range",
+        "query:start_date"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/categories": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "CategoriesResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/chat-list": {
+      "parameters": [
+        "query:search",
+        "query:status"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "UserChatsResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/chat-stream/{session_id}": {
+      "parameters": [
+        "path:session_id",
+        "query:chat_id",
+        "query:event_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/chat/{chat_id}": {
+      "parameters": [
+        "path:chat_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "PreviousChatMessagesResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/dashboard-info": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "DashboardInfoResponse",
+        "401": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/dashboard-stats": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "DashboardStatsResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/download-version": {
+      "parameters": [
+        "query:file_type",
+        "query:report_id",
+        "query:version"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "VersionDownloadResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/get-tc-verified": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "GetTCVerifiedResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/get-walkover-status": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "GetWalkoverStatusResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/health": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": ""
+      }
+    },
+    "GET /api/v1/home-search": {
+      "parameters": [
+        "query:created_after",
+        "query:created_before",
+        "query:domain",
+        "query:limit",
+        "query:offset",
+        "query:q",
+        "query:status"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "HomeSearchResponse",
+        "400": "ErrorResponse",
+        "401": "ErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/list-version-outputs": {
+      "parameters": [
+        "query:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "ListVersionOutputsResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/live-sources": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "LiveSourcesResponse"
+      }
+    },
+    "GET /api/v1/onboarding/research-interests": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "ResearchInterestsResponse"
+      }
+    },
+    "GET /api/v1/onboarding/roles": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "UserRolesResponse"
+      }
+    },
+    "GET /api/v1/onboarding/status": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "OnboardingStatusResponse"
+      }
+    },
+    "GET /api/v1/ongoing-chats": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "OngoingChatsResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/report": {
+      "parameters": [
+        "query:file_type",
+        "query:id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "ReportPresignedUrlResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/report-domains": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "ReportDomainsResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/report-domains/{domain_name}/reports": {
+      "parameters": [
+        "path:domain_name",
+        "query:limit",
+        "query:offset"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "DomainReportsResponse",
+        "400": "ErrorResponse",
+        "401": "ErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/report-info": {
+      "parameters": [
+        "query:report_id",
+        "query:report_version_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "ReportInfoResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/report-version-history/{report_id}": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "ReportVersionHistoryResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/temp-chat-stream/{session_id}": {
+      "parameters": [
+        "path:session_id",
+        "query:chat_id",
+        "query:event_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/temp-chat/{chat_id}": {
+      "parameters": [
+        "path:chat_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "TempChatMessagesResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/verify-reset-token": {
+      "parameters": [
+        "query:token"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "VerifyResetTokenResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "GET /api/v1/wallet/balance": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "WalletBalanceResponse",
+        "401": "WalletErrorResponse",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "GET /api/v1/wallet/payment-status/{payment_id}": {
+      "parameters": [
+        "path:payment_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "PaymentStatusResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "404": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "GET /api/v1/wallet/referral": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "ReferralInfoResponse",
+        "401": "WalletErrorResponse",
+        "404": "ReferralErrorResponse",
+        "500": "ReferralErrorResponse"
+      }
+    },
+    "GET /api/v1/wallet/subscription": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "SubscriptionResponse",
+        "401": "WalletErrorResponse",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "GET /api/v1/wallet/tiers": {
+      "parameters": [
+        "query:country_code"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "AllTiersResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /api/v1/wallet/transactions": {
+      "parameters": [
+        "query:limit",
+        "query:offset",
+        "query:transaction_type"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "TransactionHistoryResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "GET /health/live": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": ""
+      }
+    },
+    "GET /health/ready": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": ""
+      }
+    },
+    "GET /internal/db/ask-caspr/cards/{card_id}/latest-version": {
+      "parameters": [
+        "path:card_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/chat-entry": {
+      "parameters": [
+        "query:report_id",
+        "query:section_id",
+        "query:subsection_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/chat-history": {
+      "parameters": [
+        "query:report_id",
+        "query:report_version_id",
+        "query:section_id",
+        "query:subsection_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/reports/{report_id}": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/reports/{report_id}/card-data": {
+      "parameters": [
+        "path:report_id",
+        "query:section_id",
+        "query:subsection_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/reports/{report_id}/cards-format": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/reports/{report_id}/data": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/reports/{report_id}/refinement-history": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/users/{user_id}/exists": {
+      "parameters": [
+        "path:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/ask-caspr/validate-section": {
+      "parameters": [
+        "query:report_id",
+        "query:section_id",
+        "query:subsection_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/chat-files": {
+      "parameters": [
+        "query:chat_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/file-versions/active": {
+      "parameters": [
+        "query:uploaded_file_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/upload-file-config/by-chat": {
+      "parameters": [
+        "query:chat_id",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/uploaded-files": {
+      "parameters": [
+        "query:limit",
+        "query:offset",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/uploaded-files/by-hash": {
+      "parameters": [
+        "query:content_hash",
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/uploaded-files/by-ids": {
+      "parameters": [
+        "query:ids"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/uploaded-files/session-data": {
+      "parameters": [
+        "query:ids"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/uploaded-files/{uploaded_file_id}": {
+      "parameters": [
+        "path:uploaded_file_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/vector-store": {
+      "parameters": [
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/vector-store-files": {
+      "parameters": [
+        "query:user_vector_store_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/grep/vector-store-files/exists": {
+      "parameters": [
+        "query:file_version_id",
+        "query:user_vector_store_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/messages/{chat_id}/owner": {
+      "parameters": [
+        "path:chat_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/users/{user_id}": {
+      "parameters": [
+        "path:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "GET /internal/db/wallet/subscription": {
+      "parameters": [
+        "query:user_id"
+      ],
+      "request_body": false,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "PATCH /api/v1/update-tc-verified": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "UpdateTCVerifiedResponse",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "PATCH /internal/db/ask-caspr/chat-entry/{entry_id}": {
+      "parameters": [
+        "path:entry_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "PATCH /internal/db/ask-caspr/reports/{report_id}": {
+      "parameters": [
+        "path:report_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "PATCH /internal/db/grep/file-versions/{file_version_id}": {
+      "parameters": [
+        "path:file_version_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "PATCH /internal/db/grep/uploaded-files/{uploaded_file_id}": {
+      "parameters": [
+        "path:uploaded_file_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "PATCH /internal/db/grep/vector-store/{vs_id}": {
+      "parameters": [
+        "path:vs_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/book-call": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "BookCallResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/chat": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/complete-walkover": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "CompleteWalkoverResponse",
+        "401": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/create-session": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/create-temp-session": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/delete-card": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RefineOrDeleteResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/delete-chat": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "DeleteChatResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/delete-visualization": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RefineOrDeleteResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/edit-card-content": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RefineOrDeleteResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/forgot-password": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "ForgotPasswordResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/generate-infographic": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "GenerateInfographicResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/generate-presentation": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "GeneratePresentationResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/generate-report": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "GenerateReportResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/google-login": {
+      "parameters": [
+        "query:chat_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "GoogleLoginResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/login": {
+      "parameters": [
+        "query:chat_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "LoginResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/logout": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "LogoutResponse",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/onboarding/complete": {
+      "parameters": [],
+      "request_body": false,
+      "responses": {
+        "200": "OnboardingStepResponse"
+      }
+    },
+    "POST /api/v1/onboarding/save-interests": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "OnboardingStepResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/onboarding/save-role": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "OnboardingStepResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/onboarding/save-university-email": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "OnboardingStepResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/onboarding/validate-university-email": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "ValidateUniversityEmailResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/presigned-urls": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "BatchPresignedUrlResponse",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "429": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/refine-card": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RefineOrDeleteResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/refine-visualization": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RefineVisualizationResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/regenerate-executive-summary": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RegenerateESResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/rename-chat-title": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RenameChatResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/request": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RequestResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/reset-password": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "ResetPasswordResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/revert-card": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "RevertCardResponse",
+        "401": "ErrorResponse",
+        "404": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/send-verification-link": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "SendVerificationLinkResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/signup": {
+      "parameters": [
+        "query:chat_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "SignupResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/subscribe": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "src__resources__schemas__subscription__SubscribeResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/temp-chat": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/user-logs": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "401": "ErrorResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/verify-account-token": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "VerifyAccountTokenResponse",
+        "422": "ErrorResponse",
+        "500": "ErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/calculate-tax": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "TaxCalculationResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/payment-webhook": {
+      "parameters": [
+        "header:X-API-Key"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "PaymentWebhookResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/subscribe": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "src__resources__schemas__wallet__SubscribeResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "404": "WalletErrorResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/wallet/subscription/calculate-tax": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "TaxCalculationResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/subscription/cancel": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "CancelSubscriptionResponse",
+        "400": "WalletErrorResponse",
+        "404": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/subscription/update-payment-method": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "UpdatePaymentMethodResponse",
+        "400": "WalletErrorResponse",
+        "403": "WalletErrorResponse",
+        "404": "WalletErrorResponse",
+        "422": "HTTPValidationError",
+        "500": "WalletErrorResponse"
+      }
+    },
+    "POST /api/v1/wallet/subscription/webhook": {
+      "parameters": [
+        "header:X-API-Key"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /api/v1/wallet/topup/initiate": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "TopupInitiateResponse",
+        "400": "WalletErrorResponse",
+        "401": "WalletErrorResponse",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/ask-caspr/ensure-report-file": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/ask-caspr/persist-refine": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/ask-caspr/web-search-event": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/cost-tracker": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/chat-files": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/file-versions": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/upload-file-config/by-references": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/uploaded-files": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/uploaded-files/{uploaded_file_id}/parse-result": {
+      "parameters": [
+        "path:uploaded_file_id"
+      ],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/vector-store": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    },
+    "POST /internal/db/grep/vector-store-files": {
+      "parameters": [],
+      "request_body": true,
+      "responses": {
+        "200": "",
+        "422": "HTTPValidationError"
+      }
+    }
+  }
+}

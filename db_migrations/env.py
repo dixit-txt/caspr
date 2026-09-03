@@ -2,11 +2,18 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-from src.db.database import Base
 
 from alembic import context
 import asyncio
-from src.db.db_utils import ENGINE
+
+# Importing the aggregator registers every mapper before autogenerate runs.
+# Without it, models that have moved into a context package are invisible and
+# autogenerate proposes dropping their tables.
+import app.models  # noqa: F401
+from app.core.constants import DB_CONNECTION_LINK
+from app.core.db import Base, build_engine
+
+ENGINE = build_engine(DB_CONNECTION_LINK)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -21,6 +28,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+# All 34 models share the single app.core.db.Base, so one metadata is the
+# complete picture. Importing app.models above is what guarantees that: a
+# model whose module has not been imported is absent from this metadata, and
+# autogenerate would propose dropping its table.
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -53,7 +64,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=Base.metadata, compare_server_default = True, compare_type = True)
+    context.configure(connection=connection, target_metadata=target_metadata, compare_server_default = True, compare_type = True)
 
     with context.begin_transaction():
         context.run_migrations()

@@ -46,9 +46,86 @@ dependencies = [
 ]
 
 [tool.uv]
-package = false
+# R-STRUCT-2 / R-UV-1: the project is an installed package, so `src/app` is
+# imported from the environment rather than picked up off the working
+# directory. That is what stops "passes locally, ModuleNotFoundError in the
+# container".
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
 
 [dependency-groups]
 dev = [
+    "asgi-lifespan>=2.1.0",
+    "httpx>=0.28.1",
     "ipykernel>=7.3.0",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16",
 ]
+
+# --- R-TOOL-1: Ruff owns lint and format. Rules are selected explicitly so a
+# --- Ruff upgrade cannot silently change what CI enforces.
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "SIM",      # simplify
+    "ASYNC",    # blocking calls in async def       <- R-FA-4
+    "S",        # bandit security rules             <- R-SEC-1
+    "T20",      # flake8-print                      <- R-LOG-1
+    "RUF",
+]
+ignore = ["E501"]  # the formatter owns line length
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+"db_migrations/**" = ["E501", "I001"]
+# Debt register. Each entry names a module that needs a logic pass the
+# structural migration is not permitted to make. Shrink this list, never
+# extend it. See docs/superpowers/specs/2026-09-03-caspr-core-rulebook-alignment-design.md
+"src/app/core/constants.py" = ["S105", "S106"]
+"src/app/research/**" = ["S", "B", "SIM", "ASYNC", "T20"]
+"src/app/observability/**" = ["S", "B", "SIM", "T20"]
+
+# --- R-TOOL-2: mypy strict is a merge gate.
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_reexport = true
+exclude = ["db_migrations/versions/"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+
+# Debt register. strict remains a real gate for every module not listed here.
+[[tool.mypy.overrides]]
+module = ["app.research.*", "app.observability.*", "app.adapters.*", "app.core.constants"]
+ignore_errors = true
+
+# --- R-TEST-1, R-TEST-2
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"
+markers = ["unit", "integration", "e2e", "smoke"]
+testpaths = ["tests"]
