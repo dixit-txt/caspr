@@ -214,6 +214,53 @@ async def list_uploaded_files(user_id: str, limit: int | None = None, offset: in
         }
 
 
+# TYPE 1 (see caspr-core/FILE-HANDLING-COMPATIBILITY.md): these two routes
+# moved here, ahead of the {uploaded_file_id} route below. FastAPI/Starlette
+# match routes in registration order, and a path-param route matches ANY
+# segment — so with {uploaded_file_id} registered first (as it was), a GET
+# to .../uploaded-files/by-ids or .../uploaded-files/session-data matched
+# {uploaded_file_id}="by-ids" / "session-data" instead of these handlers,
+# 404ing on a file that was never meant to be looked up by that literal
+# string. Confirmed by reproduction: every real grep query from
+# file-handling hit this 404 on session-data specifically. Static path
+# segments must be registered before a path-param route that could shadow
+# them — by-hash (above) already was; these two weren't.
+@router.get("/internal/db/grep/uploaded-files/by-ids")
+async def get_uploaded_files_by_ids(
+    ids: str = Query(..., description="comma-separated uploaded_file ids"),
+):
+    """Unfiltered fetch (unlike session-data below, which only returns
+    is_parsed+completed rows) — used by grep-service's chat-reference-files
+    lookup, which must show files regardless of parse status."""
+    id_list = [i for i in ids.split(",") if i]
+    async with async_session_scope() as session:
+        from sqlalchemy import select as _select
+
+        from app.models import UploadedFile as _UploadedFile
+
+        result = await session.execute(_select(_UploadedFile).where(_UploadedFile.id.in_(id_list)))
+        rows = result.scalars().all()
+        return {"files": [_row(r, _UPLOADED_FILE_FIELDS) for r in rows]}
+
+
+@router.get("/internal/db/grep/uploaded-files/session-data")
+async def get_session_data(ids: str = Query(..., description="comma-separated uploaded_file ids")):
+    """The one latency-sensitive read on this router: everything
+    grep_agent_2.create_session_from_db() needs (filtered file rows +
+    their chunks) in a single round trip, instead of the N+1 pattern a
+    literal 1:1 endpoint mirror would force on the caller."""
+    id_list = [i for i in ids.split(",") if i]
+    async with async_session_scope() as session:
+        files = await grep_db.get_uploaded_files_for_grep(id_list, session)
+        out = []
+        for f in files:
+            chunks = await grep_db.get_uploaded_file_chunks(f.id, session)
+            row = _row(f, _UPLOADED_FILE_FIELDS)
+            row["chunks"] = [_row(c, _CHUNK_FIELDS) for c in chunks]
+            out.append(row)
+        return {"files": out}
+
+
 @router.get("/internal/db/grep/uploaded-files/{uploaded_file_id}")
 async def get_uploaded_file(uploaded_file_id: str):
     async with async_session_scope() as session:
@@ -319,26 +366,25 @@ async def store_parse_result(uploaded_file_id: str, data: StoreParseResultReques
                 [_Chunk(c) for c in data.chunks],
                 session,
             )
+        # TYPE 1 (see caspr-core/FILE-HANDLING-COMPATIBILITY.md): _row() is a
+        # plain synchronous function — `getattr()`, no await. It can never
+        # safely trigger a lazy DB fetch, and one was happening here: at
+        # least one column (updated_at, onupdate=func.now()) is left
+        # "expired pending server value" after the flush above, so reading
+        # it from _row() fired an unawaited refresh outside SQLAlchemy's
+        # async greenlet, raising `sqlalchemy.exc.MissingGreenlet` (surfaced
+        # via the connection pool's pre-ping check during that refresh).
+        # Moving the _row() call earlier (before commit) did NOT fix this —
+        # the expired attribute exists post-flush, before commit even runs.
+        # The actual fix: one explicit, properly-awaited refresh reloads
+        # every column (server-computed ones included) so nothing is left
+        # expired for _row()'s bare getattr() to stumble over.
+        # Confirmed by reproduction: every real upload through file-handling
+        # hit this and the file was marked FAILED downstream, until this fix.
+        await session.refresh(uploaded_file)
+        result = _row(uploaded_file, _UPLOADED_FILE_FIELDS)
         await session.commit()
-        return _row(uploaded_file, _UPLOADED_FILE_FIELDS)
-
-
-@router.get("/internal/db/grep/uploaded-files/by-ids")
-async def get_uploaded_files_by_ids(
-    ids: str = Query(..., description="comma-separated uploaded_file ids"),
-):
-    """Unfiltered fetch (unlike session-data below, which only returns
-    is_parsed+completed rows) — used by grep-service's chat-reference-files
-    lookup, which must show files regardless of parse status."""
-    id_list = [i for i in ids.split(",") if i]
-    async with async_session_scope() as session:
-        from sqlalchemy import select as _select
-
-        from app.models import UploadedFile as _UploadedFile
-
-        result = await session.execute(_select(_UploadedFile).where(_UploadedFile.id.in_(id_list)))
-        rows = result.scalars().all()
-        return {"files": [_row(r, _UPLOADED_FILE_FIELDS) for r in rows]}
+        return result
 
 
 @router.get("/internal/db/messages/{chat_id}/owner")
@@ -350,24 +396,6 @@ async def get_message_owner(chat_id: str):
         result = await session.execute(select(Message.user_id).where(Message.id == chat_id))
         owner = result.scalar_one_or_none()
         return {"user_id": owner}
-
-
-@router.get("/internal/db/grep/uploaded-files/session-data")
-async def get_session_data(ids: str = Query(..., description="comma-separated uploaded_file ids")):
-    """The one latency-sensitive read on this router: everything
-    grep_agent_2.create_session_from_db() needs (filtered file rows +
-    their chunks) in a single round trip, instead of the N+1 pattern a
-    literal 1:1 endpoint mirror would force on the caller."""
-    id_list = [i for i in ids.split(",") if i]
-    async with async_session_scope() as session:
-        files = await grep_db.get_uploaded_files_for_grep(id_list, session)
-        out = []
-        for f in files:
-            chunks = await grep_db.get_uploaded_file_chunks(f.id, session)
-            row = _row(f, _UPLOADED_FILE_FIELDS)
-            row["chunks"] = [_row(c, _CHUNK_FIELDS) for c in chunks]
-            out.append(row)
-        return {"files": out}
 
 
 # ============================================================================
