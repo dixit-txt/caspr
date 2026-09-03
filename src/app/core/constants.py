@@ -216,7 +216,7 @@ S3_REPORTS_BASE_PATH = os.getenv("S3_REPORTS_BASE_PATH")
 # Document search backend: "openai" (vector store + file_search) or "grep" (local grep_agent)
 # Default is "grep" — OpenAI vector store approach has been replaced by grep_agent_2.
 # Set FILE_SEARCH_MODE=openai in the environment to revert to the OpenAI approach.
-# TYPE 1 (see FILE-HANDLING-COMPATIBILITY.md): blank-but-present silently
+# TYPE 1 fix: blank-but-present silently
 # resolved to "" here, which is neither "grep" nor "openai" — so
 # use_grep_file_search() returned False and every call silently routed to
 # the OpenAI vector-store path instead of file-handling, with no error.
@@ -300,7 +300,7 @@ REPORT_GEN_MESSAGE = "Your report has been generated successfully. You can downl
 # (docker-compose.yml at the workspace root) to http://file-handling:8010 and
 # http://render-report:8020; anything else falls back to localhost, which is
 # right for a developer running four uvicorns.
-# TYPE 1 (see FILE-HANDLING-COMPATIBILITY.md): `, "default"` alone silently
+# TYPE 1 fix: `, "default"` alone silently
 # resolves to "" (not the default) when .env has the key present but blank —
 # this is what actually connects caspr-core to file-handling.
 GREP_SERVICE_BASE_URL = os.getenv("GREP_SERVICE_BASE_URL") or "http://localhost:8010"

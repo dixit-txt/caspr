@@ -214,7 +214,7 @@ async def list_uploaded_files(user_id: str, limit: int | None = None, offset: in
         }
 
 
-# TYPE 1 (see caspr-core/FILE-HANDLING-COMPATIBILITY.md): these two routes
+# TYPE 1 fix: these two routes
 # moved here, ahead of the {uploaded_file_id} route below. FastAPI/Starlette
 # match routes in registration order, and a path-param route matches ANY
 # segment — so with {uploaded_file_id} registered first (as it was), a GET
@@ -293,8 +293,17 @@ async def patch_uploaded_file(uploaded_file_id: str, data: PatchUploadedFileRequ
             await upload_db.touch_uploaded_file_accessed(record, session)
         if data.soft_delete:
             await upload_db.soft_delete_uploaded_file(record, session)
+        # TYPE 1 fix: same bug
+        # as store_parse_result — bare _row()/getattr() right after commit()
+        # can hit an expired column (updated_at, onupdate=func.now()) outside
+        # SQLAlchemy's async greenlet, raising MissingGreenlet. Confirmed by
+        # reproduction: every soft-delete through file-handling hit this —
+        # the row was correctly deleted, but the response crashed with a 500,
+        # which file-handling then reported as its own generic delete failure.
+        await session.refresh(record)
+        result = _row(record, _UPLOADED_FILE_FIELDS)
         await session.commit()
-        return _row(record, _UPLOADED_FILE_FIELDS)
+        return result
 
 
 class ChunkIn(BaseModel):
@@ -366,7 +375,7 @@ async def store_parse_result(uploaded_file_id: str, data: StoreParseResultReques
                 [_Chunk(c) for c in data.chunks],
                 session,
             )
-        # TYPE 1 (see caspr-core/FILE-HANDLING-COMPATIBILITY.md): _row() is a
+        # TYPE 1 fix: _row() is a
         # plain synchronous function — `getattr()`, no await. It can never
         # safely trigger a lazy DB fetch, and one was happening here: at
         # least one column (updated_at, onupdate=func.now()) is left
