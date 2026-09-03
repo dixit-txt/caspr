@@ -32,7 +32,7 @@ def test_every_module_imports() -> None:
             continue
         try:
             importlib.import_module(info.name)
-        except Exception as exc:  # noqa: BLE001 - report every failure at once
+        except Exception as exc:
             failures.append(f"{info.name}: {type(exc).__name__}: {exc}")
     assert not failures, "modules failed to import:\n" + "\n".join(failures)
 

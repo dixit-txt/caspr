@@ -1,12 +1,12 @@
 """email_utils.py: Email utility functions for sending emails"""
+
 import html as html_mod
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from datetime import UTC, datetime
 from email.mime.application import MIMEApplication
-from typing import List, Optional, Dict
-from app.core.logging import setup_logging
-from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from app.core.constants import (
     EMAIL_CONFIG,
     ENVIRONMENT,
@@ -18,17 +18,17 @@ from app.core.constants import (
     PAYMENT_ALERT_EMAILS,
     PAYMENT_ALERT_SENDER_EMAIL,
     PAYMENT_ALERT_SENDER_EMAIL_PASS,
-    ROOT_DIR,
     SIGNUP_VERIFICATION_EXPIRE_MINUTES,
 )
-import os
-from pathlib import Path
+from app.core.logging import setup_logging
 
 # Configure logging
 logger = setup_logging(__file__)
 
+
 class EmailConfig:
     """Email configuration class"""
+
     def __init__(
         self,
         smtp_server: str = EMAIL_CONFIG["SMTP_SERVER"],
@@ -36,8 +36,8 @@ class EmailConfig:
         sender_email: str = EMAIL_CONFIG["SENDER_EMAIL"],
         app_password: str = EMAIL_CONFIG["APP_PASSWORD"],
         use_tls: bool = EMAIL_CONFIG["USE_TLS"],
-        cc_emails: Optional[List[str]] = None,
-        bcc_emails: Optional[List[str]] = None
+        cc_emails: list[str] | None = None,
+        bcc_emails: list[str] | None = None,
     ):
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
@@ -47,19 +47,20 @@ class EmailConfig:
         self.cc_emails = cc_emails
         self.bcc_emails = bcc_emails
 
+
 def send_email(
     email_config: EmailConfig,
-    recipient_emails: List[str],
+    recipient_emails: list[str],
     subject: str,
     body: str,
-    html_body: Optional[str] = None,
-    cc_emails: Optional[List[str]] = None,
-    bcc_emails: Optional[List[str]] = None,
-    message: Optional[MIMEMultipart] = None
+    html_body: str | None = None,
+    cc_emails: list[str] | None = None,
+    bcc_emails: list[str] | None = None,
+    message: MIMEMultipart | None = None,
 ) -> bool:
     """
     Send an email using SMTP with app password authentication.
-    
+
     Args:
         email_config (EmailConfig): Email configuration object
         recipient_emails (List[str]): List of recipient email addresses
@@ -69,62 +70,62 @@ def send_email(
         cc_emails (Optional[List[str]]): List of CC email addresses (overrides default)
         bcc_emails (Optional[List[str]]): List of BCC email addresses (overrides default)
         message (Optional[MIMEMultipart]): Pre-created message with attachments
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
     try:
         # Use provided message or create new one
         if message is None:
-            message = MIMEMultipart('alternative')
-            message['Subject'] = subject
-            message['From'] = email_config.sender_email
-            message['To'] = ', '.join(recipient_emails)
-            
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = email_config.sender_email
+            message["To"] = ", ".join(recipient_emails)
+
             # Add CC and BCC if configured
             cc_emails = cc_emails or email_config.cc_emails
             bcc_emails = bcc_emails or email_config.bcc_emails
-            
+
             if cc_emails:
-                message['Cc'] = ', '.join(cc_emails)
-            
+                message["Cc"] = ", ".join(cc_emails)
+
             # Add plain text body
-            message.attach(MIMEText(body, 'plain'))
-            
+            message.attach(MIMEText(body, "plain"))
+
             # Add HTML body if provided
             if html_body:
-                message.attach(MIMEText(html_body, 'html'))
+                message.attach(MIMEText(html_body, "html"))
         else:
             # Set headers for pre-created message
-            message['Subject'] = subject
-            message['From'] = email_config.sender_email
-            message['To'] = ', '.join(recipient_emails)
+            message["Subject"] = subject
+            message["From"] = email_config.sender_email
+            message["To"] = ", ".join(recipient_emails)
             # Add CC and BCC if configured
             cc_emails = cc_emails or email_config.cc_emails
             bcc_emails = bcc_emails or email_config.bcc_emails
-            
+
             if cc_emails:
-                message['Cc'] = ', '.join(cc_emails)
-        
+                message["Cc"] = ", ".join(cc_emails)
+
         # Combine all recipients
         all_recipients = recipient_emails.copy()
         if cc_emails:
             all_recipients.extend(cc_emails)
         if bcc_emails:
             all_recipients.extend(bcc_emails)
-        
+
         # Send email
         with smtplib.SMTP(email_config.smtp_server, email_config.smtp_port) as smtp:
             if email_config.use_tls:
                 smtp.starttls()
             smtp.login(email_config.sender_email, email_config.app_password)
             smtp.send_message(message, to_addrs=all_recipients)
-        
+
         logger.info(f"Email sent successfully to {', '.join(recipient_emails)}")
         return True
-        
+
     except Exception as e:
-        logger.error(f"Failed to send email: {str(e)}")
+        logger.error(f"Failed to send email: {e!s}")
         return False
 
 
@@ -133,15 +134,14 @@ def send_report_notification_email(
     user_name: str,
     report_title: str,
     email_config: EmailConfig = EmailConfig(
-        cc_emails=EMAIL_CONFIG["CC_EMAILS"],
-        bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
+        cc_emails=EMAIL_CONFIG["CC_EMAILS"], bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
     ),
-    attachment_data: Optional[List[Dict[str, str]]] = [],
-    report_generation_time: datetime = datetime.now(timezone.utc)
+    attachment_data: list[dict[str, str]] | None = [],
+    report_generation_time: datetime = datetime.now(UTC),
 ) -> bool:
     """
     Send a report notification email with a beautiful HTML template and file attachments.
-    
+
     Args:
         recipient_email (str): Recipient email address
         user_name (str): Name of the user
@@ -152,17 +152,17 @@ def send_report_notification_email(
                 "file_path": "path/to/file",
                 "mime_type": "application/pdf" or "text/html" or "text/markdown"
             }
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
-    if ENVIRONMENT == 'DEV':
+    if ENVIRONMENT == "DEV":
         subject = f"DEV - Your Report: {report_title}"
     else:
         subject = f"Your Report: {report_title}"
-    
+
     # Plain text body
-    body = f"""Hello {user_name or 'User'},
+    body = f"""Hello {user_name or "User"},
 
             Your requested report "{report_title}" has been generated at {report_generation_time.strftime("%Y-%m-%d %H:%M:%S")} (UTC) and is attached to this email.
 
@@ -171,7 +171,7 @@ def send_report_notification_email(
             Best Regards,
             Team Caspr.
             """
-    
+
     # HTML body with beautiful coral theme styling
     html_body = f"""
     <!DOCTYPE html>
@@ -277,7 +277,7 @@ def send_report_notification_email(
             </div>
             <div class="content">
                 <div class="message">
-                    Hello {user_name or 'User'},
+                    Hello {user_name or "User"},
                 </div>
                 <div class="message">
                     We're pleased to inform you that your requested report has been generated successfully.
@@ -301,32 +301,32 @@ def send_report_notification_email(
     </body>
     </html>
     """
-    
+
     # Create message with attachments
-    message = MIMEMultipart('mixed')
-    
+    message = MIMEMultipart("mixed")
+
     # Create the alternative part for text and HTML
-    alternative_part = MIMEMultipart('alternative')
+    alternative_part = MIMEMultipart("alternative")
     message.attach(alternative_part)
-    
+
     # Add plain text body
-    alternative_part.attach(MIMEText(body, 'plain'))
-    
+    alternative_part.attach(MIMEText(body, "plain"))
+
     # Add HTML body
-    alternative_part.attach(MIMEText(html_body, 'html'))
-    
+    alternative_part.attach(MIMEText(html_body, "html"))
+
     # Add attachments if provided
     if attachment_data:
         for attachment in attachment_data:
-            file_data = attachment.get('file_data')
-            mime_type = attachment.get('mime_type')
-            file_name = attachment.get('file_name')
-                    
+            file_data = attachment.get("file_data")
+            mime_type = attachment.get("mime_type")
+            file_name = attachment.get("file_name")
+
             # Create attachment
-            attachment = MIMEApplication(file_data, _subtype=mime_type.split('/')[-1])
-            attachment.add_header('Content-Disposition', 'attachment', filename=file_name)
+            attachment = MIMEApplication(file_data, _subtype=mime_type.split("/")[-1])
+            attachment.add_header("Content-Disposition", "attachment", filename=file_name)
             message.attach(attachment)
-    
+
     # Send email using the existing send_email function
     return send_email(
         email_config=email_config,
@@ -334,44 +334,44 @@ def send_report_notification_email(
         subject=subject,
         body=body,
         html_body=html_body,
-        message=message  # Pass the message with attachments
+        message=message,  # Pass the message with attachments
     )
+
 
 def send_password_reset_email(
     recipient_email: str,
     user_name: str,
     reset_link: str,
     email_config: EmailConfig = EmailConfig(
-        cc_emails=EMAIL_CONFIG["CC_EMAILS"],
-        bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
-    )
+        cc_emails=EMAIL_CONFIG["CC_EMAILS"], bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
+    ),
 ) -> bool:
     """
     Send a password reset email with a beautiful HTML template and reset link button.
-    
+
     Args:
         recipient_email (str): Recipient email address
         user_name (str): Name of the user
         reset_link (str): Frontend reset link URL
         email_config (EmailConfig): Email configuration object
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
-    """    
-    if ENVIRONMENT == 'DEV':
-        subject = f"DEV - Password Reset Request"
+    """
+    if ENVIRONMENT == "DEV":
+        subject = "DEV - Password Reset Request"
     else:
-        subject = f"Password Reset Request"
-    
+        subject = "Password Reset Request"
+
     # Calculate expiration time in minutes/hours for better readability
     expiration_time = FORGOT_PASSWORD_EXPIRE_MINUTES
     expiration_text = f"{expiration_time} minutes"
     if expiration_time >= 60:
         hours = expiration_time / 60
         expiration_text = f"{hours:.1f} hours" if hours % 1 != 0 else f"{int(hours)} hours"
-    
+
     # Plain text body
-    body = f"""Hello {user_name or 'User'},
+    body = f"""Hello {user_name or "User"},
 
             You have requested to reset your password. Please click the link below to reset your password.
             
@@ -384,7 +384,7 @@ def send_password_reset_email(
             Best Regards,
             Team Caspr.
             """
-    
+
     # HTML body with beautiful coral theme styling
     html_body = f"""
     <!DOCTYPE html>
@@ -477,7 +477,7 @@ def send_password_reset_email(
             </div>
             <div class="content">
                 <div class="message">
-                    Hello {user_name or 'User'},
+                    Hello {user_name or "User"},
                 </div>
                 <div class="message">
                     We received a request to reset your password. Please click the button below to create a new password.
@@ -503,16 +503,16 @@ def send_password_reset_email(
     </body>
     </html>
     """
-    
+
     # Create message with HTML part
-    message = MIMEMultipart('alternative')
-    
+    message = MIMEMultipart("alternative")
+
     # Add plain text body
-    message.attach(MIMEText(body, 'plain'))
-    
+    message.attach(MIMEText(body, "plain"))
+
     # Add HTML body
-    message.attach(MIMEText(html_body, 'html'))
-    
+    message.attach(MIMEText(html_body, "html"))
+
     # Send email using the existing send_email function
     return send_email(
         email_config=email_config,
@@ -520,45 +520,45 @@ def send_password_reset_email(
         subject=subject,
         body=body,
         html_body=html_body,
-        message=message
+        message=message,
     )
+
 
 def send_signup_verification_email(
     recipient_email: str,
     user_name: str,
     verification_link: str,
     email_config: EmailConfig = EmailConfig(
-        cc_emails=EMAIL_CONFIG["CC_EMAILS"],
-        bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
-    )
+        cc_emails=EMAIL_CONFIG["CC_EMAILS"], bcc_emails=EMAIL_CONFIG["BCC_EMAILS"]
+    ),
 ) -> bool:
     """
     Send an email verification email with a beautiful HTML template and verification link button.
-    
+
     Args:
         recipient_email (str): Recipient email address
         user_name (str): Name of the user
         verification_link (str): Frontend verification link URL
         email_config (EmailConfig): Email configuration object
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
-    
-    if ENVIRONMENT == 'DEV':
-        subject = f"DEV - Verify Your Email Address"
+
+    if ENVIRONMENT == "DEV":
+        subject = "DEV - Verify Your Email Address"
     else:
-        subject = f"Verify Your Email Address"
-    
+        subject = "Verify Your Email Address"
+
     # Calculate expiration time in minutes/hours for better readability
     expiration_time = SIGNUP_VERIFICATION_EXPIRE_MINUTES
     expiration_text = f"{expiration_time} minutes"
     if expiration_time >= 60:
         hours = expiration_time / 60
         expiration_text = f"{hours:.1f} hours" if hours % 1 != 0 else f"{int(hours)} hours"
-    
+
     # Plain text body
-    body = f"""Hello {user_name or 'User'},
+    body = f"""Hello {user_name or "User"},
 
             Thank you for signing up! Please verify your email address by clicking the link below.
             
@@ -571,7 +571,7 @@ def send_signup_verification_email(
             Best Regards,
             Team Caspr.
             """
-    
+
     # HTML body with beautiful coral theme styling
     html_body = f"""
     <!DOCTYPE html>
@@ -664,7 +664,7 @@ def send_signup_verification_email(
             </div>
             <div class="content">
                 <div class="message">
-                    Hello {user_name or 'User'},
+                    Hello {user_name or "User"},
                 </div>
                 <div class="message">
                     Thank you for signing up! To complete your registration and access all features, please verify your email address by clicking the button below.
@@ -690,16 +690,16 @@ def send_signup_verification_email(
     </body>
     </html>
     """
-    
+
     # Create message with HTML part
-    message = MIMEMultipart('alternative')
-    
+    message = MIMEMultipart("alternative")
+
     # Add plain text body
-    message.attach(MIMEText(body, 'plain'))
-    
+    message.attach(MIMEText(body, "plain"))
+
     # Add HTML body
-    message.attach(MIMEText(html_body, 'html'))
-    
+    message.attach(MIMEText(html_body, "html"))
+
     # Send email using the existing send_email function
     return send_email(
         email_config=email_config,
@@ -707,20 +707,21 @@ def send_signup_verification_email(
         subject=subject,
         body=body,
         html_body=html_body,
-        message=message
+        message=message,
     )
+
 
 def send_subscribe_confirmation_email(
     subscriber_email: str,
     sender_email: str,
     sender_password: str,
-    to_emails: List[str],
-    cc_emails: Optional[List[str]] = None,
-    bcc_emails: Optional[List[str]] = None
+    to_emails: list[str],
+    cc_emails: list[str] | None = None,
+    bcc_emails: list[str] | None = None,
 ) -> bool:
     """
     Send a subscription confirmation email synchronously.
-    
+
     Args:
         subscriber_email (str): Subscriber email address
         sender_email (str): Sender email address
@@ -728,15 +729,15 @@ def send_subscribe_confirmation_email(
         to_emails (List[str]): List of TO email addresses (cannot be empty)
         cc_emails (Optional[List[str]]): List of CC email addresses (can be empty)
         bcc_emails (Optional[List[str]]): List of BCC email addresses (can be empty)
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
     # Extract subscriber name from email (e.g., abc123@example.com -> abc123)
-    subscriber_name = subscriber_email.split('@')[0]
-    
+    subscriber_name = subscriber_email.split("@")[0]
+
     subject = "Caspr. - New Subscribed User"
-    
+
     # Plain text body
     body = f"""Dear Team,
 
@@ -794,23 +795,23 @@ Caspr. System
     """
 
     # Create message
-    message = MIMEMultipart('alternative')
+    message = MIMEMultipart("alternative")
     # Don't set headers here - let email_helper.py handle them
-    
+
     # Add plain text body
-    message.attach(MIMEText(body, 'plain'))
-    
+    message.attach(MIMEText(body, "plain"))
+
     # Add HTML body
-    message.attach(MIMEText(html_body, 'html'))
-    
+    message.attach(MIMEText(html_body, "html"))
+
     # Create EmailConfig with provided parameters
     email_config = EmailConfig(
         sender_email=sender_email,
         app_password=sender_password,
         cc_emails=cc_emails or [],
-        bcc_emails=bcc_emails or []
+        bcc_emails=bcc_emails or [],
     )
-    
+
     # Send email using the sync send_email function
     return send_email(
         email_config=email_config,
@@ -818,7 +819,7 @@ Caspr. System
         subject=subject,
         body=body,
         html_body=html_body,
-        message=message
+        message=message,
     )
 
 
@@ -829,13 +830,13 @@ def send_request_confirmation_email(
     description: str,
     sender_email: str,
     sender_password: str,
-    to_emails: List[str],
-    cc_emails: Optional[List[str]] = None,
-    bcc_emails: Optional[List[str]] = None,
+    to_emails: list[str],
+    cc_emails: list[str] | None = None,
+    bcc_emails: list[str] | None = None,
 ) -> bool:
     """
     Send a request confirmation email synchronously.
-    
+
     Args:
         client_email (str): Client email address
         client_name (str): Client name
@@ -846,7 +847,7 @@ def send_request_confirmation_email(
         to_emails (List[str]): List of TO email addresses (cannot be empty)
         cc_emails (Optional[List[str]]): List of CC email addresses (can be empty)
         bcc_emails (Optional[List[str]]): List of BCC email addresses (can be empty)
-    
+
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
@@ -866,9 +867,9 @@ Please find below the details of the client request.
 
 Form: Home page, Caspr.
 
-Company Website: {client_website or 'Not provided'}
+Company Website: {client_website or "Not provided"}
 
-Client Brief: {description or 'Not provided'}
+Client Brief: {description or "Not provided"}
 
 Best regards,
 Caspr.
@@ -908,9 +909,9 @@ Caspr.
         
         <p><strong>Form:</strong> Home page, Caspr.</p>
         
-        <p><strong>Company Website:</strong> {client_website or 'Not provided'}</p>
+        <p><strong>Company Website:</strong> {client_website or "Not provided"}</p>
         
-        <p><strong>Client Brief:</strong> {description or 'Not provided'}</p>
+        <p><strong>Client Brief:</strong> {description or "Not provided"}</p>
         
         <p>Best regards,<br>
         Caspr.</p>
@@ -919,23 +920,23 @@ Caspr.
     """
 
     # Create message
-    message = MIMEMultipart('alternative')
+    message = MIMEMultipart("alternative")
     # Don't set headers here - let email_helper.py handle them
-    
+
     # Add plain text body
-    message.attach(MIMEText(body, 'plain'))
-    
+    message.attach(MIMEText(body, "plain"))
+
     # Add HTML body
-    message.attach(MIMEText(html_body, 'html'))
-    
+    message.attach(MIMEText(html_body, "html"))
+
     # Create EmailConfig with provided parameters
     email_config = EmailConfig(
         sender_email=sender_email,
         app_password=sender_password,
         cc_emails=cc_emails or [],
-        bcc_emails=bcc_emails or []
+        bcc_emails=bcc_emails or [],
     )
-    
+
     # Send email using the sync send_email function
     return send_email(
         email_config=email_config,
@@ -943,7 +944,7 @@ Caspr.
         subject=subject,
         body=body,
         html_body=html_body,
-        message=message
+        message=message,
     )
 
 
@@ -952,12 +953,12 @@ def send_book_call_email(
     email: str,
     phone_country_code: str,
     phone_number: str,
-    brief: Optional[str],
+    brief: str | None,
     sender_email: str,
     sender_password: str,
-    to_emails: List[str],
-    cc_emails: Optional[List[str]] = None,
-    bcc_emails: Optional[List[str]] = None,
+    to_emails: list[str],
+    cc_emails: list[str] | None = None,
+    bcc_emails: list[str] | None = None,
 ) -> bool:
     """
     Send a plain text email for a call booking request.
@@ -981,8 +982,8 @@ Phone: {phone_country_code} {phone_number}
 Please follow up as needed.
 """
 
-    message = MIMEMultipart('alternative')
-    message.attach(MIMEText(body, 'plain'))
+    message = MIMEMultipart("alternative")
+    message.attach(MIMEText(body, "plain"))
 
     email_config = EmailConfig(
         sender_email=sender_email,
@@ -1043,7 +1044,7 @@ def send_error_digest_email(errors: list) -> bool:
         traceback_snippet = (first.get("traceback") or "")[:600]
         if traceback_snippet:
             traceback_snippet = _esc(traceback_snippet)
-            traceback_html = f'<pre style="font-size:11px;background:#f8f8f8;padding:6px;border-radius:4px;overflow:auto;max-width:580px">{traceback_snippet}{"..." if len(first.get("traceback","")) > 600 else ""}</pre>'
+            traceback_html = f'<pre style="font-size:11px;background:#f8f8f8;padding:6px;border-radius:4px;overflow:auto;max-width:580px">{traceback_snippet}{"..." if len(first.get("traceback", "")) > 600 else ""}</pre>'
         else:
             traceback_html = "<em style='color:#999'>None</em>"
 
@@ -1053,7 +1054,7 @@ def send_error_digest_email(errors: list) -> bool:
         # Pre-auth user_ids look like "[pre-auth] amit@example.com" — pull the
         # email out so it appears in the email column too.
         if not raw_user_email and raw_user_id.startswith("[pre-auth] "):
-            candidate = raw_user_id[len("[pre-auth] "):]
+            candidate = raw_user_id[len("[pre-auth] ") :]
             if "@" in candidate:
                 raw_user_email = candidate
 
@@ -1143,7 +1144,11 @@ def send_payment_notification_email(event_type: str, payment_data: dict) -> bool
     Returns:
         True if email sent successfully, False otherwise.
     """
-    if not PAYMENT_ALERT_EMAILS or not PAYMENT_ALERT_SENDER_EMAIL or not PAYMENT_ALERT_SENDER_EMAIL_PASS:
+    if (
+        not PAYMENT_ALERT_EMAILS
+        or not PAYMENT_ALERT_SENDER_EMAIL
+        or not PAYMENT_ALERT_SENDER_EMAIL_PASS
+    ):
         logger.warning("Payment alert email config missing - skipping notification")
         return False
 
@@ -1180,9 +1185,12 @@ def send_payment_notification_email(event_type: str, payment_data: dict) -> bool
         </tr>"""
 
     event_type_esc = _esc(event_type)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     details_rows = (
-        _row("Event", f'<span style="background:{badge_bg};color:{badge_color};font-weight:bold;padding:2px 8px;border-radius:4px;font-family:Arial">{event_type_esc}</span>')
+        _row(
+            "Event",
+            f'<span style="background:{badge_bg};color:{badge_color};font-weight:bold;padding:2px 8px;border-radius:4px;font-family:Arial">{event_type_esc}</span>',
+        )
         + _row("Timestamp", timestamp)
         + _row("Environment", ENVIRONMENT)
         + _row("Payment ID", payment_data.get("payment_id"))
@@ -1229,5 +1237,7 @@ def send_payment_notification_email(event_type: str, payment_data: dict) -> bool
             html_body=html_body,
         )
     except Exception:
-        logger.error(f"Failed to send payment notification email for event {event_type}", exc_info=True)
+        logger.error(
+            f"Failed to send payment notification email for event {event_type}", exc_info=True
+        )
         return False

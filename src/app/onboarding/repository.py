@@ -10,15 +10,15 @@ Async database functions for the onboarding flow:
   - Mark onboarding as complete
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid_utils import uuid7
 
-from src.config.log_helper import setup_logging
-from src.db.database import (
+from app.core.logging import setup_logging
+from app.models import (
     ResearchInterest,
     University,
     User,
@@ -58,14 +58,11 @@ def _custom_research_interest_name(user_id: str) -> str:
 # Read operations — lookup tables
 # ============================================================================
 
-async def get_active_user_roles(session: AsyncSession) -> Dict[str, Any]:
+
+async def get_active_user_roles(session: AsyncSession) -> dict[str, Any]:
     """Return all active user roles ordered by display_order."""
     try:
-        stmt = (
-            select(UserRole)
-            .where(UserRole.is_active == True)  # noqa: E712
-            .order_by(UserRole.display_order)
-        )
+        stmt = select(UserRole).where(UserRole.is_active == True).order_by(UserRole.display_order)
         result = await session.execute(stmt)
         roles = result.scalars().all()
         return {
@@ -87,12 +84,12 @@ async def get_active_user_roles(session: AsyncSession) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-async def get_active_research_interests(session: AsyncSession) -> Dict[str, Any]:
+async def get_active_research_interests(session: AsyncSession) -> dict[str, Any]:
     """Return all active research interests ordered by display_order."""
     try:
         stmt = (
             select(ResearchInterest)
-            .where(ResearchInterest.is_active == True)  # noqa: E712
+            .where(ResearchInterest.is_active == True)
             .order_by(ResearchInterest.display_order)
         )
         result = await session.execute(stmt)
@@ -119,12 +116,13 @@ async def get_active_research_interests(session: AsyncSession) -> Dict[str, Any]
 # Write operations — onboarding steps
 # ============================================================================
 
+
 async def save_user_role(
     user_id: str,
     role_id: str,
     session: AsyncSession,
-    custom_role_text: Optional[str] = None,
-) -> Dict[str, Any]:
+    custom_role_text: str | None = None,
+) -> dict[str, Any]:
     """Set the user's selected role (Step 1 of onboarding).
 
     Curated role path:
@@ -178,9 +176,7 @@ async def save_user_role(
             effective_role_id = custom_row.id
 
         await session.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(user_role_id=effective_role_id)
+            update(User).where(User.id == user_id).values(user_role_id=effective_role_id)
         )
         await session.commit()
         logger.info(
@@ -196,10 +192,10 @@ async def save_user_role(
 
 async def save_user_research_interests(
     user_id: str,
-    interest_ids: List[str],
+    interest_ids: list[str],
     session: AsyncSession,
-    custom_research_text: Optional[str] = None,
-) -> Dict[str, Any]:
+    custom_research_text: str | None = None,
+) -> dict[str, Any]:
     """
     Replace the user's research interest selections (Step 2 of onboarding).
     Deletes existing associations and inserts the new set.
@@ -229,7 +225,7 @@ async def save_user_research_interests(
                 has_other_interest = True
             resolved_interests.append(interest)
 
-        normalized_custom_text: Optional[str] = None
+        normalized_custom_text: str | None = None
         if has_other_interest:
             normalized_custom_text = (custom_research_text or "").strip() or None
             if not normalized_custom_text:
@@ -279,15 +275,15 @@ async def save_user_research_interests(
 
         for interest in resolved_interests:
             target_interest_id = (
-                custom_row.id
-                if interest.name == OTHER_RESEARCH_INTEREST_NAME
-                else interest.id
+                custom_row.id if interest.name == OTHER_RESEARCH_INTEREST_NAME else interest.id
             )
-            session.add(UserResearchInterest(
-                id=str(uuid7()),
-                user_id=user_id,
-                research_interest_id=target_interest_id,
-            ))
+            session.add(
+                UserResearchInterest(
+                    id=str(uuid7()),
+                    user_id=user_id,
+                    research_interest_id=target_interest_id,
+                )
+            )
 
         await session.commit()
         logger.info(
@@ -305,9 +301,8 @@ async def save_user_research_interests(
 # University domain validation & verification
 # ============================================================================
 
-async def validate_university_domain(
-    email: str, session: AsyncSession
-) -> Dict[str, Any]:
+
+async def validate_university_domain(email: str, session: AsyncSession) -> dict[str, Any]:
     """
     Check if the domain portion of *email* belongs to a registered, active
     partner university.
@@ -317,9 +312,8 @@ async def validate_university_domain(
     """
     try:
         domain = email.rsplit("@", 1)[-1].lower()
-        stmt = (
-            select(University)
-            .where(University.email_domain == domain, University.is_active == True)  # noqa: E712
+        stmt = select(University).where(
+            University.email_domain == domain, University.is_active == True
         )
         result = await session.execute(stmt)
         uni = result.scalar_one_or_none()
@@ -346,7 +340,7 @@ async def save_university_email(
     university_email: str,
     university_id: str,
     session: AsyncSession,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Persist the student's university email and link the university."""
     try:
         stmt = (
@@ -360,23 +354,19 @@ async def save_university_email(
         )
         await session.execute(stmt)
         await session.commit()
-        logger.info(f"[SAVE_UNIVERSITY_EMAIL] user={user_id} email={university_email} uni={university_id}")
+        logger.info(
+            f"[SAVE_UNIVERSITY_EMAIL] user={user_id} email={university_email} uni={university_id}"
+        )
         return {"success": True}
     except SQLAlchemyError as e:
         logger.error(f"[SAVE_UNIVERSITY_EMAIL] DB error: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
 
 
-async def mark_university_verified(
-    user_id: str, session: AsyncSession
-) -> Dict[str, Any]:
+async def mark_university_verified(user_id: str, session: AsyncSession) -> dict[str, Any]:
     """Flip is_university_verified to True after the user clicks the verification link."""
     try:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(is_university_verified=True)
-        )
+        stmt = update(User).where(User.id == user_id).values(is_university_verified=True)
         await session.execute(stmt)
         await session.commit()
         logger.info(f"[MARK_UNIVERSITY_VERIFIED] user={user_id}")
@@ -390,16 +380,11 @@ async def mark_university_verified(
 # Complete onboarding
 # ============================================================================
 
-async def mark_onboarding_completed(
-    user_id: str, session: AsyncSession
-) -> Dict[str, Any]:
+
+async def mark_onboarding_completed(user_id: str, session: AsyncSession) -> dict[str, Any]:
     """Set onboarding_completed = True."""
     try:
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(onboarding_completed=True)
-        )
+        stmt = update(User).where(User.id == user_id).values(onboarding_completed=True)
         await session.execute(stmt)
         await session.commit()
         logger.info(f"[MARK_ONBOARDING_COMPLETED] user={user_id}")
@@ -409,9 +394,7 @@ async def mark_onboarding_completed(
         return {"success": False, "error": str(e)}
 
 
-async def get_user_onboarding_status(
-    user_id: str, session: AsyncSession
-) -> Dict[str, Any]:
+async def get_user_onboarding_status(user_id: str, session: AsyncSession) -> dict[str, Any]:
     """
     Return the current onboarding state for a user — useful for the frontend
     to know which step to show if the user refreshes mid-flow.
@@ -427,16 +410,18 @@ async def get_user_onboarding_status(
             return {"success": False, "error": "User not found"}
 
         # ---- Role ----
-        reported_role_id: Optional[str] = user.user_role_id
-        custom_role_text: Optional[str] = None
+        reported_role_id: str | None = user.user_role_id
+        custom_role_text: str | None = None
         if user.user_role_id:
             role = await session.get(UserRole, user.user_role_id)
-            if role is not None and not role.is_active and role.name.startswith(CUSTOM_ROLE_NAME_PREFIX):
+            if (
+                role is not None
+                and not role.is_active
+                and role.name.startswith(CUSTOM_ROLE_NAME_PREFIX)
+            ):
                 # Resolve the curated "other" row so the frontend selects it.
                 other_role = (
-                    await session.execute(
-                        select(UserRole).where(UserRole.name == OTHER_ROLE_NAME)
-                    )
+                    await session.execute(select(UserRole).where(UserRole.name == OTHER_ROLE_NAME))
                 ).scalar_one_or_none()
                 reported_role_id = other_role.id if other_role else None
                 custom_role_text = role.display_name
@@ -452,14 +437,11 @@ async def get_user_onboarding_status(
         )
         interest_rows = interest_rows.scalars().all()
 
-        custom_research_text: Optional[str] = None
+        custom_research_text: str | None = None
         other_interest_row = None
-        reported_interest_ids: List[str] = []
+        reported_interest_ids: list[str] = []
         for interest in interest_rows:
-            if (
-                not interest.is_active
-                and interest.name.startswith(CUSTOM_RESEARCH_NAME_PREFIX)
-            ):
+            if not interest.is_active and interest.name.startswith(CUSTOM_RESEARCH_NAME_PREFIX):
                 custom_research_text = interest.display_name
                 if other_interest_row is None:
                     other_interest_row = (

@@ -24,28 +24,45 @@ BASELINE = Path(__file__).parent / "baseline_routes.json"
 _HTTP_METHODS = ("get", "post", "put", "patch", "delete", "head", "options")
 
 
-def _response_shape(operation: dict[str, Any]) -> dict[str, str]:
-    """Map each declared status code to the schema name it returns.
+def _bare(component: str) -> str:
+    """Strip FastAPI's module-path qualification from a component name.
 
-    Keeping the schema *name* rather than the inlined schema means a field
-    added to a response model is not a diff, but swapping which model a route
-    returns is.
+    FastAPI qualifies a component as ``pkg__mod__ClassName`` only when two
+    classes share a bare name. The R-STRUCT-1 migration moves modules by
+    design, so ``src__resources__schemas__subscription__SubscribeResponse``
+    becoming ``app__billing__schemas__SubscribeResponse`` is the migration
+    working, not a contract change. Comparing bare names keeps the gate from
+    firing on every module move — the field list below is what actually
+    guards the contract.
+    """
+    return component.rsplit("__", 1)[-1]
+
+
+def _response_shape(operation: dict[str, Any], components: dict[str, Any]) -> dict[str, str]:
+    """Map each status code to the response model's name and its field list.
+
+    Recording the fields as well as the name is strictly stronger than the
+    name alone: it catches a route quietly returning a different model *and*
+    a model quietly losing or gaining a field, while staying blind to the
+    module path the class happens to live at.
     """
     shapes: dict[str, str] = {}
     for status, response in sorted((operation.get("responses") or {}).items()):
-        schema = (
-            response.get("content", {})
-            .get("application/json", {})
-            .get("schema", {})
-        )
+        schema = response.get("content", {}).get("application/json", {}).get("schema", {})
         ref = schema.get("$ref") or schema.get("items", {}).get("$ref", "")
-        shapes[status] = ref.rsplit("/", 1)[-1] if ref else ""
+        if not ref:
+            shapes[status] = ""
+            continue
+        component = ref.rsplit("/", 1)[-1]
+        fields = sorted(components.get(component, {}).get("properties") or {})
+        shapes[status] = f"{_bare(component)}({','.join(fields)})"
     return shapes
 
 
 def build_inventory(app: Any) -> dict[str, Any]:
     """Return a stable, diffable description of every HTTP operation."""
     spec = app.openapi()
+    components = spec.get("components", {}).get("schemas", {})
     operations: dict[str, Any] = {}
     for path, path_item in spec.get("paths", {}).items():
         for method in _HTTP_METHODS:
@@ -53,11 +70,10 @@ def build_inventory(app: Any) -> dict[str, Any]:
             if operation is None:
                 continue
             operations[f"{method.upper()} {path}"] = {
-                "responses": _response_shape(operation),
+                "responses": _response_shape(operation, components),
                 "request_body": bool(operation.get("requestBody")),
                 "parameters": sorted(
-                    f"{p.get('in')}:{p.get('name')}"
-                    for p in operation.get("parameters", [])
+                    f"{p.get('in')}:{p.get('name')}" for p in operation.get("parameters", [])
                 ),
             }
     return {"operation_count": len(operations), "operations": operations}

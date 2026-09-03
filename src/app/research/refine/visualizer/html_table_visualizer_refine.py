@@ -1,26 +1,24 @@
 import json
-import os
 import re
 
-import boto3
-from botocore.config import Config
 from google import genai
+
 # from langchain_aws import ChatBedrock  # Bedrock disabled — using direct Anthropic API instead
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from app.core.constants import (
+    ANTHROPIC_API_KEY,
     # BEDROCK_ACCESS_KEY_ID,
     # BEDROCK_SECRET_ACCESS_KEY,
     # BEDROCK_REGION_NAME,
     ANTHROPIC_MODEL_ID,
-    ANTHROPIC_API_KEY,
-    SYNC_OPENAI_CLIENT,
     GEMINI_API_KEY,
     GEMINI_HTML_MODEL,
-    OPENAI_VALIDATION_MODEL,
     GEMINI_VALIDATION_MODEL,
+    OPENAI_VALIDATION_MODEL,
+    SYNC_OPENAI_CLIENT,
 )
 from app.core.logging import setup_logging
 from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
@@ -45,10 +43,7 @@ GEMINI_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
 # )
 
 ANTHROPIC_VIZ_LLM = ChatAnthropic(
-    model=ANTHROPIC_MODEL_ID,
-    timeout=None,
-    max_retries=5,
-    api_key=ANTHROPIC_API_KEY
+    model=ANTHROPIC_MODEL_ID, timeout=None, max_retries=5, api_key=ANTHROPIC_API_KEY
 )
 
 
@@ -389,9 +384,13 @@ def _invoke_anthropic_viz_info_refine(
         _cached_refine_system_message(INFO_VISUALIZER_REFINE_SYSTEM_PROMPT),
         HumanMessage(content=user_prompt),
     ]
-    structured_llm = ANTHROPIC_VIZ_LLM.with_structured_output(HTMLInfoVisualizationRefine, include_raw=True)
+    structured_llm = ANTHROPIC_VIZ_LLM.with_structured_output(
+        HTMLInfoVisualizationRefine, include_raw=True
+    )
     raw_result = structured_llm.invoke(messages)
-    save_raw_llm_response(raw_result["raw"], ANTHROPIC_MODEL_ID, log_context, chat_id, user_id=user_id)
+    save_raw_llm_response(
+        raw_result["raw"], ANTHROPIC_MODEL_ID, log_context, chat_id, user_id=user_id
+    )
     if raw_result["parsing_error"] is not None:
         raise raw_result["parsing_error"]
     result: HTMLInfoVisualizationRefine = raw_result["parsed"]
@@ -400,11 +399,21 @@ def _invoke_anthropic_viz_info_refine(
     return result
 
 
-def _validate_info_refine_html(html_code: str, table_data: str, user_prompt: str = None, chat_id: str | None = None, user_id: str | None = None) -> HTMLInfoRefineValidationResult:
+def _validate_info_refine_html(
+    html_code: str,
+    table_data: str,
+    user_prompt: str = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+) -> HTMLInfoRefineValidationResult:
     """Validate generated HTML infographic for PDF rendering issues."""
     js_patterns = [
-        r'<script[\s>]', r'</script>', r'\bon\w+\s*=',
-        r'javascript:', r'document\.', r'window\.',
+        r"<script[\s>]",
+        r"</script>",
+        r"\bon\w+\s*=",
+        r"javascript:",
+        r"document\.",
+        r"window\.",
     ]
     js_found = [p for p in js_patterns if re.search(p, html_code, re.IGNORECASE)]
     if js_found:
@@ -415,7 +424,7 @@ def _validate_info_refine_html(html_code: str, table_data: str, user_prompt: str
             fix_instructions="Remove ALL JavaScript. Use pure HTML+CSS only.",
         )
 
-    table_tags = re.findall(r'<(table|thead|tbody|tr|th|td)[\s>]', html_code, re.IGNORECASE)
+    table_tags = re.findall(r"<(table|thead|tbody|tr|th|td)[\s>]", html_code, re.IGNORECASE)
     if table_tags:
         return HTMLInfoRefineValidationResult(
             is_valid=False,
@@ -424,12 +433,14 @@ def _validate_info_refine_html(html_code: str, table_data: str, user_prompt: str
             fix_instructions="Replace all <table>/<tr>/<td> with div-based infographic layouts.",
         )
 
-    oversized_widths = re.findall(r'width:\s*(\d+)px', html_code)
+    oversized_widths = re.findall(r"width:\s*(\d+)px", html_code)
     oversized = [w for w in oversized_widths if int(w) > 750]
     if oversized:
         return HTMLInfoRefineValidationResult(
             is_valid=False,
-            issues=[f"Elements have widths exceeding PDF margins: {oversized}px. Max allowed is 700px."],
+            issues=[
+                f"Elements have widths exceeding PDF margins: {oversized}px. Max allowed is 700px."
+            ],
             severity="critical",
             fix_instructions="Reduce all element widths to max 700px. Use max-width: 700px on the outermost container and ensure all children fit within.",
         )
@@ -457,7 +468,13 @@ Check rendering safety, layout validity, data integrity, and visual quality."""
                 {"role": "user", "content": validation_prompt},
             ],
         )
-        save_raw_llm_response(response, OPENAI_VALIDATION_MODEL, "Checking a refined table visualization", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            response,
+            OPENAI_VALIDATION_MODEL,
+            "Checking a refined table visualization",
+            chat_id,
+            user_id=user_id,
+        )
         result = json.loads(response.choices[0].message.content)
         return HTMLInfoRefineValidationResult(
             is_valid=result.get("is_valid", False),
@@ -482,7 +499,13 @@ Check rendering safety, layout validity, data integrity, and visual quality."""
                     "thinking_config": {"thinking_budget": 0},
                 },
             )
-            save_raw_llm_response(interaction, GEMINI_VALIDATION_MODEL, "Checking a refined table visualization (backup)", chat_id, user_id=user_id)
+            save_raw_llm_response(
+                interaction,
+                GEMINI_VALIDATION_MODEL,
+                "Checking a refined table visualization (backup)",
+                chat_id,
+                user_id=user_id,
+            )
             result = json.loads(strip_json_code_fence(interaction.output_text))
             return HTMLInfoRefineValidationResult(
                 is_valid=result.get("is_valid", False),
@@ -491,8 +514,12 @@ Check rendering safety, layout validity, data integrity, and visual quality."""
                 fix_instructions=result.get("fix_instructions", ""),
             )
         except Exception as gemini_e:
-            logger.warning(f"Info HTML validation with Gemini also failed: {gemini_e}, skipping validation")
-            return HTMLInfoRefineValidationResult(is_valid=True, issues=[], severity="pass", fix_instructions="")
+            logger.warning(
+                f"Info HTML validation with Gemini also failed: {gemini_e}, skipping validation"
+            )
+            return HTMLInfoRefineValidationResult(
+                is_valid=True, issues=[], severity="pass", fix_instructions=""
+            )
 
 
 def _invoke_info_refine_with_fallback(
@@ -519,7 +546,13 @@ def _invoke_info_refine_with_fallback(
         return None
 
 
-def generate_info_visualization_refine(table_data: str, user_refine_prompt: str = None, existing_viz: str = None, chat_id: str | None = None, user_id: str | None = None) -> HTMLInfoVisualizationRefine | None:
+def generate_info_visualization_refine(
+    table_data: str,
+    user_refine_prompt: str = None,
+    existing_viz: str = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+) -> HTMLInfoVisualizationRefine | None:
     """
     Generate a refined creative infographic-style HTML visualization from table data.
 
@@ -555,8 +588,16 @@ Refine the existing visualization (or generate a new one if no existing viz prov
         return None
 
     for attempt in range(MAX_VALIDATION_RETRIES):
-        logger.info(f"[InfoVizRefine] Validating HTML (attempt {attempt + 1}/{MAX_VALIDATION_RETRIES})")
-        validation = _validate_info_refine_html(visualization.html_code, table_data, user_prompt=user_refine_prompt, chat_id=chat_id, user_id=user_id)
+        logger.info(
+            f"[InfoVizRefine] Validating HTML (attempt {attempt + 1}/{MAX_VALIDATION_RETRIES})"
+        )
+        validation = _validate_info_refine_html(
+            visualization.html_code,
+            table_data,
+            user_prompt=user_refine_prompt,
+            chat_id=chat_id,
+            user_id=user_id,
+        )
 
         if validation.is_valid or validation.severity == "pass":
             logger.info("[InfoVizRefine] HTML validation passed")
@@ -564,7 +605,9 @@ Refine the existing visualization (or generate a new one if no existing viz prov
             visualization.html_code = _ensure_page_break_avoid(visualization.html_code)
             return visualization
 
-        logger.warning(f"[InfoVizRefine] Validation failed ({validation.severity}): {validation.issues}")
+        logger.warning(
+            f"[InfoVizRefine] Validation failed ({validation.severity}): {validation.issues}"
+        )
 
         fix_user_prompt = f"""INPUT TABLE DATA:
 {table_data}
@@ -575,7 +618,7 @@ Refine the existing visualization (or generate a new one if no existing viz prov
 --- FIX INSTRUCTIONS ---
 {validation.fix_instructions}
 
-USER REFINEMENT INSTRUCTION: {user_refine_prompt or 'None'}
+USER REFINEMENT INSTRUCTION: {user_refine_prompt or "None"}
 
 Generate a corrected CREATIVE infographic visualization (NOT a table). Ensure PDF safety."""
 
@@ -602,11 +645,7 @@ def _ensure_page_break_avoid(html_code: str) -> str:
     """Wrap HTML in a page-break-avoiding container if not already present."""
     if "page-break-inside" in html_code and "break-inside" in html_code:
         return html_code
-    return (
-        '<div style="page-break-inside: avoid; break-inside: avoid;">'
-        f"{html_code}"
-        "</div>"
-    )
+    return f'<div style="page-break-inside: avoid; break-inside: avoid;">{html_code}</div>'
 
 
 # A4 page (297mm) minus 25mm top + 20mm bottom margins ≈ 252mm ≈ 952px of content
@@ -627,7 +666,7 @@ def _enforce_pdf_size_constraints(html_code: str) -> str:
     table and the visual and blank pages) and we do NOT clip vertically — see
     _enforce_pdf_height_constraint.
     """
-    if not ('max-width: 620px' in html_code or 'max-width:620px' in html_code):
+    if not ("max-width: 620px" in html_code or "max-width:620px" in html_code):
         html_code = (
             '<div style="max-width: 620px; width: 100%; box-sizing: border-box; '
             'overflow-x: hidden; overflow-y: visible; margin: 0 auto; position: relative;">'
@@ -654,51 +693,39 @@ def _enforce_pdf_height_constraint(html_code: str) -> str:
 
 def _sanitize_info_refine_html(html_code: str) -> str:
     """Strip HTML comments, collapse empty lines, fix overflow issues, remove table tags, and strip citations/links."""
-    html_code = re.sub(r'<!--.*?-->', '', html_code, flags=re.DOTALL)
-    html_code = re.sub(r'\n\s*\n', '\n', html_code)
+    html_code = re.sub(r"<!--.*?-->", "", html_code, flags=re.DOTALL)
+    html_code = re.sub(r"\n\s*\n", "\n", html_code)
 
-    html_code = re.sub(
-        r'white-space:\s*nowrap',
-        'white-space: normal',
-        html_code
-    )
+    html_code = re.sub(r"white-space:\s*nowrap", "white-space: normal", html_code)
 
-    html_code = re.sub(
-        r'max-width:\s*700px',
-        'max-width: 620px',
-        html_code
-    )
+    html_code = re.sub(r"max-width:\s*700px", "max-width: 620px", html_code)
 
-    if 'max-width' in html_code and 'overflow-wrap' not in html_code:
+    if "max-width" in html_code and "overflow-wrap" not in html_code:
         html_code = re.sub(
             r'(max-width:\s*\d+px[^;"]*;)',
-            r'\1 box-sizing: border-box; overflow-x: hidden; overflow-wrap: break-word; word-wrap: break-word;',
+            r"\1 box-sizing: border-box; overflow-x: hidden; overflow-wrap: break-word; word-wrap: break-word;",
             html_code,
-            count=1
+            count=1,
         )
 
     html_code = re.sub(
-        r'width:\s*(\d+)px',
-        lambda m: f'width: {min(int(m.group(1)), 620)}px' if int(m.group(1)) > 650 else m.group(0),
-        html_code
+        r"width:\s*(\d+)px",
+        lambda m: f"width: {min(int(m.group(1)), 620)}px" if int(m.group(1)) > 650 else m.group(0),
+        html_code,
     )
-    html_code = re.sub(
-        r'min-width:\s*\d{4,}px',
-        'min-width: 0',
-        html_code
-    )
+    html_code = re.sub(r"min-width:\s*\d{4,}px", "min-width: 0", html_code)
 
-    html_code = re.sub(r'</?table[^>]*>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'</?thead[^>]*>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'</?tbody[^>]*>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'</?tr[^>]*>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'</?th[^>]*>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'</?td[^>]*>', '', html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?table[^>]*>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?thead[^>]*>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?tbody[^>]*>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?tr[^>]*>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?th[^>]*>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"</?td[^>]*>", "", html_code, flags=re.IGNORECASE)
 
-    html_code = re.sub(r'<a\s[^>]*>(.*?)</a>', r'\1', html_code, flags=re.DOTALL | re.IGNORECASE)
-    html_code = re.sub(r'\[\d+\]', '', html_code)
-    html_code = re.sub(r'<sup>\s*\d+\s*</sup>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'<sup>\s*\[\d+\]\s*</sup>', '', html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"<a\s[^>]*>(.*?)</a>", r"\1", html_code, flags=re.DOTALL | re.IGNORECASE)
+    html_code = re.sub(r"\[\d+\]", "", html_code)
+    html_code = re.sub(r"<sup>\s*\d+\s*</sup>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"<sup>\s*\[\d+\]\s*</sup>", "", html_code, flags=re.IGNORECASE)
 
     html_code = _enforce_pdf_size_constraints(html_code)
 

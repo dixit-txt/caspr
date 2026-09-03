@@ -20,3 +20,16 @@ STANDARD_CATEGORY_SLUG = "standard"
 
 #: Internal representation of that same domain.
 DEFAULT_DOMAIN_INTERNAL = "default"
+
+
+#: Human-readable labels for each report domain slug. Recovered verbatim from
+#: ``src/db/async_db_functions.py``; read by both reports and dashboard.
+DOMAIN_DISPLAY_NAMES: dict[str, str] = {
+    "default": "General",
+    "primary_research": "Primary Research",
+    "due_diligence": "Due Diligence",
+    "industry_benchmarking": "Industry Benchmarking",
+    "market_insight": "Market Insight",
+    "rfp": "RFP",
+    "business_plan": "Business Plan",
+}

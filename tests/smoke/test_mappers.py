@@ -34,6 +34,5 @@ def test_aggregator_exports_every_model() -> None:
         if not name.startswith("_") and hasattr(getattr(app.models, name), "__tablename__")
     ]
     assert len(exported) == EXPECTED_MODEL_COUNT, (
-        f"expected {EXPECTED_MODEL_COUNT} mapped classes, "
-        f"found {len(exported)}: {sorted(exported)}"
+        f"expected {EXPECTED_MODEL_COUNT} mapped classes, found {len(exported)}: {sorted(exported)}"
     )

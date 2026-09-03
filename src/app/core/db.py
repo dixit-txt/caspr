@@ -1,6 +1,6 @@
 """Database engine, session factory, and the declarative ``Base``.
 
-Two things differ from the pre-migration ``src/db/db_utils.py`` this replaces,
+Two things differ from the pre-migration ``app.core.db.py`` this replaces,
 and both are structural rather than behavioural:
 
 * The engine is built by :func:`build_engine` and owned by the application
@@ -103,7 +103,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]  # R-FA-2
 async def async_session_scope() -> AsyncIterator[AsyncSession]:
     """Session scope for callers outside a request (tasks, scripts, CLI).
 
-    Body carried over verbatim from ``src/db/db_utils.py``, including its
+    Body carried over verbatim from ``app.core.db.py``, including its
     commit convention: this scope does not commit, callers do.
     """
     session = SessionFactory(bind=_require_engine())
@@ -113,7 +113,7 @@ async def async_session_scope() -> AsyncIterator[AsyncSession]:
         await session.rollback()
         # Expected HTTP auth/permission errors (403, 401, ...) are not DB failures.
         if not isinstance(e, StarletteHTTPException):
-            logger.error(f"Database transaction rolled back due to error: {str(e)}", exc_info=True)
+            logger.error(f"Database transaction rolled back due to error: {e!s}", exc_info=True)
         raise
     finally:
         await session.close()
@@ -144,7 +144,7 @@ def _require_engine() -> AsyncEngine:
     ``async_session_scope`` directly.
 
     Building lazily rather than at import is the whole point: the
-    pre-migration ``src/db/db_utils.py`` created its engine as a module-level
+    pre-migration ``app.core.db.py`` created its engine as a module-level
     side effect, so no module in the tree could be imported without a
     reachable database. Deferring to first *use* keeps behaviour identical
     while making the import smoke test possible.

@@ -4,7 +4,7 @@ and ask-caspr-service touch Postgres.
 Per the "centralize all DB access in caspr-api" decision: neither
 grep-service, report-render-service, nor ask-caspr-service holds a
 database connection or a SQLAlchemy model file anymore. Every read/write
-they used to do directly (via src/db/grep_db.py, upload_db.py,
+they used to do directly (via app.internal.repository_grep.py, upload_db.py,
 async_db_functions.py, wallet_functions.py, ask_caspr_db.py — all still
 present here, unchanged) now happens through one of the endpoints below.
 
@@ -20,55 +20,67 @@ SECURITY: this router has no auth of its own — see caspr-api/README.md
 shared-secret header before this is reachable from anywhere but
 grep-service, report-render-service, and ask-caspr-service.
 """
+
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import select
 
-from src.config.log_helper import setup_logging
-from src.db.db_utils import async_session_scope
+from app.adapters.openai_files import ensure_report_file_id
+from app.admin.repository_costs import (
+    insert_cost_tracker,
+)
+from app.admin.repository_web_search import log_web_search_event
+from app.auth.repository import (
+    check_user_by_id,
+    get_user_details,
+)
+from app.cards.repository import (
+    get_latest_card_version,
+    get_report_in_cards_format,
+)
+from app.core.db import async_session_scope
+
 # NOTE: async_session_scope() does NOT auto-commit (see db_utils.py — the
 # commit() call inside it is commented out; the monolith's convention is
 # "caller commits explicitly after writes", same as api.py/wallet_api.py do
 # ~21 times). Every write endpoint below calls `await session.commit()`
 # itself for exactly that reason — GET-only endpoints don't need it.
-from src.db.enums import FileUploadContext, FileUsageType, UploadedFileStatus
-from src.db import grep_db, upload_db
-from sqlalchemy import select
-from src.db.database import Message
-from src.db.async_db_functions import (
-    get_user_details, insert_cost_tracker,
-    check_user_by_id, get_report_details, update_report,
-    get_report_in_cards_format, get_latest_card_version,
-)
-from src.core.refine.refine_persist import persist_refined_card
-from src.db.ask_caspr_db import (
-    validate_section_exists_in_ask_caspr,
-    get_latest_ask_caspr_chat_entry,
-    update_ask_caspr_chat_conversation,
-    get_card_data_for_ask_caspr,
-    get_report_data_for_ask_caspr,
-    get_refinement_history_for_ask_caspr,
+from app.core.enums import FileUploadContext, FileUsageType, UploadedFileStatus
+from app.core.logging import setup_logging
+from app.internal import repository_grep as grep_db
+from app.internal import repository_upload as upload_db
+from app.internal.repository_ask_caspr import (
     get_ask_caspr_chat_for_version,
+    get_card_data_for_ask_caspr,
+    get_latest_ask_caspr_chat_entry,
+    get_refinement_history_for_ask_caspr,
+    get_report_data_for_ask_caspr,
+    update_ask_caspr_chat_conversation,
+    validate_section_exists_in_ask_caspr,
 )
-from src.db.web_search_db import log_web_search_event
-from src.core.integrations.openai_file_utils import ensure_report_file_id
-from src.db.wallet_functions import get_active_subscription
-from src.db.database import UserVectorStore, FileVersion
+from app.models import FileVersion, Message, UserVectorStore
+from app.reports.repository import (
+    get_report_details,
+    update_report,
+)
+from app.research.refine.refine_persist import persist_refined_card
+from app.wallet.repository import get_active_subscription
 
 logger = setup_logging(__file__)
 
 router = APIRouter()
 
 
-def _row(obj, fields: List[str]) -> Dict[str, Any]:
+def _row(obj, fields: list[str]) -> dict[str, Any]:
     """Serialize an ORM row to a plain dict for JSON responses.
     datetimes -> isoformat, enums -> .value, everything else passed through.
     """
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for f in fields:
         v = getattr(obj, f, None)
         if isinstance(v, dt.datetime):
@@ -80,22 +92,79 @@ def _row(obj, fields: List[str]) -> Dict[str, Any]:
 
 
 _UPLOADED_FILE_FIELDS = [
-    "id", "user_id", "s3_uri", "original_filename", "file_size", "file_type",
-    "content_hash", "upload_context", "status", "is_deleted_by_user",
-    "deleted_by_user_at", "last_accessed_at", "created_at", "updated_at",
-    "total_pages", "doc_map", "sections", "llm_summary", "token_index",
-    "bigram_index", "is_parsed", "parsed_at",
+    "id",
+    "user_id",
+    "s3_uri",
+    "original_filename",
+    "file_size",
+    "file_type",
+    "content_hash",
+    "upload_context",
+    "status",
+    "is_deleted_by_user",
+    "deleted_by_user_at",
+    "last_accessed_at",
+    "created_at",
+    "updated_at",
+    "total_pages",
+    "doc_map",
+    "sections",
+    "llm_summary",
+    "token_index",
+    "bigram_index",
+    "is_parsed",
+    "parsed_at",
 ]
-_CHUNK_FIELDS = ["id", "uploaded_file_id", "chunk_id", "text", "page_num", "section", "start_offset", "end_offset"]
-_VECTOR_STORE_FIELDS = ["id", "user_id", "vector_store_id", "last_accessed_at", "created_at", "updated_at"]
-_FILE_VERSION_FIELDS = ["id", "uploaded_file_id", "openai_file_id", "is_active", "inactive_at", "created_at", "last_verified_at"]
-_VS_FILE_FIELDS = ["id", "user_vector_store_id", "file_version_id", "created_at", "is_deleted", "deleted_at"]
-_CHAT_FILE_FIELDS = ["id", "chat_id", "uploaded_file_id", "file_version_id", "usage_type", "upload_context", "created_at"]
+_CHUNK_FIELDS = [
+    "id",
+    "uploaded_file_id",
+    "chunk_id",
+    "text",
+    "page_num",
+    "section",
+    "start_offset",
+    "end_offset",
+]
+_VECTOR_STORE_FIELDS = [
+    "id",
+    "user_id",
+    "vector_store_id",
+    "last_accessed_at",
+    "created_at",
+    "updated_at",
+]
+_FILE_VERSION_FIELDS = [
+    "id",
+    "uploaded_file_id",
+    "openai_file_id",
+    "is_active",
+    "inactive_at",
+    "created_at",
+    "last_verified_at",
+]
+_VS_FILE_FIELDS = [
+    "id",
+    "user_vector_store_id",
+    "file_version_id",
+    "created_at",
+    "is_deleted",
+    "deleted_at",
+]
+_CHAT_FILE_FIELDS = [
+    "id",
+    "chat_id",
+    "uploaded_file_id",
+    "file_version_id",
+    "usage_type",
+    "upload_context",
+    "created_at",
+]
 
 
 # ============================================================================
 # UploadedFile
 # ============================================================================
+
 
 class CreateUploadedFileRequest(BaseModel):
     user_id: str
@@ -112,11 +181,15 @@ class CreateUploadedFileRequest(BaseModel):
 async def create_uploaded_file(data: CreateUploadedFileRequest):
     async with async_session_scope() as session:
         record = await upload_db.create_uploaded_file(
-            user_id=data.user_id, s3_uri=data.s3_uri,
-            original_filename=data.original_filename, file_size=data.file_size,
-            file_type=data.file_type, content_hash=data.content_hash,
+            user_id=data.user_id,
+            s3_uri=data.s3_uri,
+            original_filename=data.original_filename,
+            file_size=data.file_size,
+            file_type=data.file_type,
+            content_hash=data.content_hash,
             upload_context=FileUploadContext(data.upload_context),
-            status=UploadedFileStatus(data.status), session=session,
+            status=UploadedFileStatus(data.status),
+            session=session,
         )
         await session.commit()
         return _row(record, _UPLOADED_FILE_FIELDS)
@@ -130,10 +203,15 @@ async def get_uploaded_file_by_hash(user_id: str, content_hash: str):
 
 
 @router.get("/internal/db/grep/uploaded-files")
-async def list_uploaded_files(user_id: str, limit: Optional[int] = None, offset: Optional[int] = None):
+async def list_uploaded_files(user_id: str, limit: int | None = None, offset: int | None = None):
     async with async_session_scope() as session:
-        result = await upload_db.get_user_uploaded_files(user_id, session, limit=limit, offset=offset)
-        return {"files": [_row(f, _UPLOADED_FILE_FIELDS) for f in result["files"]], "total": result["total"]}
+        result = await upload_db.get_user_uploaded_files(
+            user_id, session, limit=limit, offset=offset
+        )
+        return {
+            "files": [_row(f, _UPLOADED_FILE_FIELDS) for f in result["files"]],
+            "total": result["total"],
+        }
 
 
 @router.get("/internal/db/grep/uploaded-files/{uploaded_file_id}")
@@ -146,7 +224,7 @@ async def get_uploaded_file(uploaded_file_id: str):
 
 
 class PatchUploadedFileRequest(BaseModel):
-    status: Optional[str] = None
+    status: str | None = None
     touch_accessed: bool = False
     soft_delete: bool = False
 
@@ -161,7 +239,9 @@ async def patch_uploaded_file(uploaded_file_id: str, data: PatchUploadedFileRequ
         if not record:
             raise HTTPException(status_code=404, detail="uploaded_file not found")
         if data.status is not None:
-            await upload_db.update_uploaded_file_status(record, UploadedFileStatus(data.status), session)
+            await upload_db.update_uploaded_file_status(
+                record, UploadedFileStatus(data.status), session
+            )
         if data.touch_accessed:
             await upload_db.touch_uploaded_file_accessed(record, session)
         if data.soft_delete:
@@ -182,12 +262,12 @@ class ChunkIn(BaseModel):
 class StoreParseResultRequest(BaseModel):
     total_pages: int
     doc_map: str
-    sections: List[str]
+    sections: list[str]
     llm_summary: str
-    token_index: Dict[str, Dict[str, int]]
-    bigram_index: Dict[str, Dict[str, int]]
+    token_index: dict[str, dict[str, int]]
+    bigram_index: dict[str, dict[str, int]]
     total_chunks: int  # matches inv_index.total_chunks — if 0, is_parsed stays False upstream
-    chunks: List[ChunkIn]
+    chunks: list[ChunkIn]
 
 
 @router.post("/internal/db/grep/uploaded-files/{uploaded_file_id}/parse-result")
@@ -217,9 +297,14 @@ async def store_parse_result(uploaded_file_id: str, data: StoreParseResultReques
             }
 
         await grep_db.store_parsed_file_metadata(
-            uploaded_file, _DocIndex(), _InvIndex(), data.llm_summary, session,
+            uploaded_file,
+            _DocIndex(),
+            _InvIndex(),
+            data.llm_summary,
+            session,
         )
         if data.total_chunks > 0 and data.chunks:
+
             class _Chunk:
                 def __init__(self, c: ChunkIn):
                     self.chunk_id = c.chunk_id
@@ -230,21 +315,27 @@ async def store_parse_result(uploaded_file_id: str, data: StoreParseResultReques
                     self.end_offset = c.end_offset
 
             await grep_db.bulk_create_uploaded_file_chunks(
-                uploaded_file_id, [_Chunk(c) for c in data.chunks], session,
+                uploaded_file_id,
+                [_Chunk(c) for c in data.chunks],
+                session,
             )
         await session.commit()
         return _row(uploaded_file, _UPLOADED_FILE_FIELDS)
 
 
 @router.get("/internal/db/grep/uploaded-files/by-ids")
-async def get_uploaded_files_by_ids(ids: str = Query(..., description="comma-separated uploaded_file ids")):
+async def get_uploaded_files_by_ids(
+    ids: str = Query(..., description="comma-separated uploaded_file ids"),
+):
     """Unfiltered fetch (unlike session-data below, which only returns
     is_parsed+completed rows) — used by grep-service's chat-reference-files
     lookup, which must show files regardless of parse status."""
     id_list = [i for i in ids.split(",") if i]
     async with async_session_scope() as session:
         from sqlalchemy import select as _select
-        from src.db.database import UploadedFile as _UploadedFile
+
+        from app.models import UploadedFile as _UploadedFile
+
         result = await session.execute(_select(_UploadedFile).where(_UploadedFile.id.in_(id_list)))
         rows = result.scalars().all()
         return {"files": [_row(r, _UPLOADED_FILE_FIELDS) for r in rows]}
@@ -283,19 +374,21 @@ async def get_session_data(ids: str = Query(..., description="comma-separated up
 # ChatFile
 # ============================================================================
 
+
 class CreateChatFileRequest(BaseModel):
     chat_id: str
     uploaded_file_id: str
-    file_version_id: Optional[str] = None
+    file_version_id: str | None = None
     usage_type: str
-    upload_context: Optional[str] = None
+    upload_context: str | None = None
 
 
 @router.post("/internal/db/grep/chat-files")
 async def create_chat_file(data: CreateChatFileRequest):
     async with async_session_scope() as session:
         record = await upload_db.create_chat_file(
-            chat_id=data.chat_id, uploaded_file_id=data.uploaded_file_id,
+            chat_id=data.chat_id,
+            uploaded_file_id=data.uploaded_file_id,
             file_version_id=data.file_version_id,
             usage_type=FileUsageType(data.usage_type),
             upload_context=FileUploadContext(data.upload_context) if data.upload_context else None,
@@ -322,6 +415,7 @@ async def list_chat_files(chat_id: str):
 # these tables when attaching newly-parsed files.)
 # ============================================================================
 
+
 class CreateVectorStoreRequest(BaseModel):
     user_id: str
     vector_store_id: str
@@ -337,13 +431,15 @@ async def get_vector_store(user_id: str):
 @router.post("/internal/db/grep/vector-store")
 async def create_vector_store(data: CreateVectorStoreRequest):
     async with async_session_scope() as session:
-        record = await upload_db.create_user_vector_store(data.user_id, data.vector_store_id, session)
+        record = await upload_db.create_user_vector_store(
+            data.user_id, data.vector_store_id, session
+        )
         await session.commit()
         return _row(record, _VECTOR_STORE_FIELDS)
 
 
 class PatchVectorStoreRequest(BaseModel):
-    new_vector_store_id: Optional[str] = None
+    new_vector_store_id: str | None = None
     touch_accessed: bool = False
 
 
@@ -370,7 +466,9 @@ class CreateFileVersionRequest(BaseModel):
 async def create_file_version(data: CreateFileVersionRequest):
     async with async_session_scope() as session:
         record = await upload_db.create_file_version(
-            uploaded_file_id=data.uploaded_file_id, openai_file_id=data.openai_file_id, session=session,
+            uploaded_file_id=data.uploaded_file_id,
+            openai_file_id=data.openai_file_id,
+            session=session,
         )
         await session.commit()
         return _row(record, _FILE_VERSION_FIELDS)
@@ -411,7 +509,9 @@ class CreateVSFileRequest(BaseModel):
 async def create_vector_store_file(data: CreateVSFileRequest):
     async with async_session_scope() as session:
         record = await upload_db.create_vector_store_file(
-            user_vector_store_id=data.user_vector_store_id, file_version_id=data.file_version_id, session=session,
+            user_vector_store_id=data.user_vector_store_id,
+            file_version_id=data.file_version_id,
+            session=session,
         )
         await session.commit()
         return _row(record, _VS_FILE_FIELDS)
@@ -427,15 +527,19 @@ async def list_vector_store_files(user_vector_store_id: str):
 @router.get("/internal/db/grep/vector-store-files/exists")
 async def vector_store_file_exists(user_vector_store_id: str, file_version_id: str):
     async with async_session_scope() as session:
-        exists = await upload_db.check_file_version_in_vector_store(user_vector_store_id, file_version_id, session)
+        exists = await upload_db.check_file_version_in_vector_store(
+            user_vector_store_id, file_version_id, session
+        )
         return {"exists": exists}
 
 
 @router.delete("/internal/db/grep/vector-store-files")
-async def delete_vector_store_files(user_vector_store_id: str, file_version_id: Optional[str] = None):
+async def delete_vector_store_files(user_vector_store_id: str, file_version_id: str | None = None):
     async with async_session_scope() as session:
         if file_version_id:
-            deleted = await upload_db.soft_delete_vector_store_file_by_version(user_vector_store_id, file_version_id, session)
+            deleted = await upload_db.soft_delete_vector_store_file_by_version(
+                user_vector_store_id, file_version_id, session
+            )
             await session.commit()
             return {"deleted_count": 1 if deleted else 0}
         count = await upload_db.soft_delete_vector_store_files_by_vs(user_vector_store_id, session)
@@ -447,6 +551,7 @@ async def delete_vector_store_files(user_vector_store_id: str, file_version_id: 
 # Composite: upload_file_config (OpenAI file-search attachment payload)
 # ============================================================================
 
+
 @router.get("/internal/db/grep/upload-file-config/by-chat")
 async def upload_file_config_by_chat(chat_id: str, user_id: str):
     async with async_session_scope() as session:
@@ -454,33 +559,36 @@ async def upload_file_config_by_chat(chat_id: str, user_id: str):
 
 
 class UploadFileConfigByRefsRequest(BaseModel):
-    reference_ids: List[str]
+    reference_ids: list[str]
     user_id: str
 
 
 @router.post("/internal/db/grep/upload-file-config/by-references")
 async def upload_file_config_by_references(data: UploadFileConfigByRefsRequest):
     async with async_session_scope() as session:
-        return await upload_db.build_upload_file_config_from_reference_ids(data.reference_ids, data.user_id, session)
+        return await upload_db.build_upload_file_config_from_reference_ids(
+            data.reference_ids, data.user_id, session
+        )
 
 
 # ============================================================================
 # Shared: cost tracker, user lookup, wallet/subscription
 # ============================================================================
 
+
 class CostTrackerRequest(BaseModel):
     timestamp: dt.datetime
     model_name: str
-    context: Optional[str] = None
-    functionality: Optional[str] = None
-    agent_name: Optional[str] = None
-    chat_id: Optional[str] = None
-    user_id: Optional[str] = None
-    usage_metadata: Optional[Dict[str, Any]] = None
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    estimated_cost: Optional[float] = None
-    cost_details: Optional[Dict[str, Any]] = None
+    context: str | None = None
+    functionality: str | None = None
+    agent_name: str | None = None
+    chat_id: str | None = None
+    user_id: str | None = None
+    usage_metadata: dict[str, Any] | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_cost: float | None = None
+    cost_details: dict[str, Any] | None = None
 
 
 @router.post("/internal/db/cost-tracker")
@@ -492,11 +600,18 @@ async def create_cost_tracker_row(data: CostTrackerRequest):
     applies to this endpoint."""
     async with async_session_scope() as session:
         result = await insert_cost_tracker(
-            timestamp=data.timestamp, model_name=data.model_name, context=data.context,
-            functionality=data.functionality, agent_name=data.agent_name,
-            chat_id=data.chat_id, user_id=data.user_id, usage_metadata=data.usage_metadata,
-            input_tokens=data.input_tokens, output_tokens=data.output_tokens,
-            estimated_cost=data.estimated_cost, cost_details=data.cost_details,
+            timestamp=data.timestamp,
+            model_name=data.model_name,
+            context=data.context,
+            functionality=data.functionality,
+            agent_name=data.agent_name,
+            chat_id=data.chat_id,
+            user_id=data.user_id,
+            usage_metadata=data.usage_metadata,
+            input_tokens=data.input_tokens,
+            output_tokens=data.output_tokens,
+            estimated_cost=data.estimated_cost,
+            cost_details=data.cost_details,
             session=session,
         )
         if not result.get("success"):
@@ -524,46 +639,47 @@ async def get_subscription(user_id: str):
 # Ask Caspr (ask-caspr-service — Q&A against report sections)
 # ============================================================================
 
+
 class UpdateAskCasprChatRequest(BaseModel):
-    chat: List[Dict[str, Any]]
+    chat: list[dict[str, Any]]
 
 
 class UpdateReportRequest(BaseModel):
-    update_data: Dict[str, Any]
+    update_data: dict[str, Any]
 
 
 class EnsureReportFileRequest(BaseModel):
     report_id: str
-    file_id: Optional[str] = None
-    file_s3_path: Optional[str] = None
+    file_id: str | None = None
+    file_s3_path: str | None = None
     log_prefix: str = "ENSURE_REPORT_FILE"
 
 
 class WebSearchEventRequest(BaseModel):
     trigger_source: str
     user_query: str
-    raw_citations: Optional[list] = None
-    model_used: Optional[str] = None
-    user_id: Optional[str] = None
-    chat_id: Optional[str] = None
-    report_id: Optional[str] = None
-    section_name: Optional[str] = None
-    candidate_links: Optional[list] = None
-    cited_links: Optional[list] = None
-    operation_id: Optional[str] = None
+    raw_citations: list | None = None
+    model_used: str | None = None
+    user_id: str | None = None
+    chat_id: str | None = None
+    report_id: str | None = None
+    section_name: str | None = None
+    candidate_links: list | None = None
+    cited_links: list | None = None
+    operation_id: str | None = None
     attempt_number: int = 0
-    provider: Optional[str] = None
-    provider_response_id: Optional[str] = None
-    provider_queries: Optional[list] = None
-    status: Optional[str] = "succeeded"
-    error_type: Optional[str] = None
-    duration_ms: Optional[int] = None
+    provider: str | None = None
+    provider_response_id: str | None = None
+    provider_queries: list | None = None
+    status: str | None = "succeeded"
+    error_type: str | None = None
+    duration_ms: int | None = None
     search_call_count: int = 0
-    usage_metadata: Optional[Dict[str, Any]] = None
-    card_id: Optional[str] = None
-    previous_response_id: Optional[str] = None
-    response_created_at: Optional[Any] = None
-    raw_response: Optional[Dict[str, Any]] = None
+    usage_metadata: dict[str, Any] | None = None
+    card_id: str | None = None
+    previous_response_id: str | None = None
+    response_created_at: Any | None = None
+    raw_response: dict[str, Any] | None = None
 
 
 @router.get("/internal/db/ask-caspr/users/{user_id}/exists")
@@ -588,11 +704,14 @@ async def ask_caspr_get_report_data(report_id: str):
 async def ask_caspr_get_card_data(
     report_id: str,
     section_id: str,
-    subsection_id: Optional[str] = None,
+    subsection_id: str | None = None,
 ):
     async with async_session_scope() as session:
         return await get_card_data_for_ask_caspr(
-            report_id, section_id, session, subsection_id=subsection_id,
+            report_id,
+            section_id,
+            session,
+            subsection_id=subsection_id,
         )
 
 
@@ -637,11 +756,14 @@ async def ask_caspr_update_report(report_id: str, data: UpdateReportRequest):
 async def ask_caspr_validate_section(
     report_id: str,
     section_id: str,
-    subsection_id: Optional[str] = None,
+    subsection_id: str | None = None,
 ):
     async with async_session_scope() as session:
         return await validate_section_exists_in_ask_caspr(
-            report_id, section_id, session, subsection_id=subsection_id,
+            report_id,
+            section_id,
+            session,
+            subsection_id=subsection_id,
         )
 
 
@@ -649,11 +771,14 @@ async def ask_caspr_validate_section(
 async def ask_caspr_get_latest_chat(
     report_id: str,
     section_id: str,
-    subsection_id: Optional[str] = None,
+    subsection_id: str | None = None,
 ):
     async with async_session_scope() as session:
         return await get_latest_ask_caspr_chat_entry(
-            report_id, section_id, session, subsection_id=subsection_id,
+            report_id,
+            section_id,
+            session,
+            subsection_id=subsection_id,
         )
 
 
@@ -668,12 +793,14 @@ async def ask_caspr_update_chat(entry_id: str, data: UpdateAskCasprChatRequest):
 async def ask_caspr_chat_history(
     report_id: str,
     section_id: str,
-    subsection_id: Optional[str] = None,
-    report_version_id: Optional[str] = None,
+    subsection_id: str | None = None,
+    report_version_id: str | None = None,
 ):
     async with async_session_scope() as session:
         return await get_ask_caspr_chat_for_version(
-            report_id, section_id, session,
+            report_id,
+            section_id,
+            session,
             subsection_id=subsection_id,
             report_version_id=report_version_id,
         )
@@ -701,16 +828,16 @@ async def ask_caspr_log_web_search_event(data: WebSearchEventRequest):
 
 class PersistRefineRequest(BaseModel):
     report_id: str
-    updated_card: Dict[str, Any]
+    updated_card: dict[str, Any]
     user_instruction: str
     refinement_type: str
-    table_id_markdown_map: Dict[str, str] = {}
-    subsection_id: Optional[str] = None
-    updated_refinement_history: List[Dict[str, Any]] = []
+    table_id_markdown_map: dict[str, str] = {}
+    subsection_id: str | None = None
+    updated_refinement_history: list[dict[str, Any]] = []
     section_id: str
     thread_policy: str
-    entry_id: Optional[str] = None
-    chat: Optional[List[Dict[str, Any]]] = None
+    entry_id: str | None = None
+    chat: list[dict[str, Any]] | None = None
 
 
 @router.post("/internal/db/ask-caspr/persist-refine")
@@ -737,5 +864,7 @@ async def ask_caspr_persist_refine(data: PersistRefineRequest):
             chat=data.chat,
         )
         if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error") or "persist-refine failed")
+            raise HTTPException(
+                status_code=500, detail=result.get("error") or "persist-refine failed"
+            )
         return result

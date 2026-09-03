@@ -14,23 +14,24 @@ Background:
 - This migration eliminates the need for .strip() calls everywhere
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fe8afc0b5a5f'
-down_revision: Union[str, None] = '3b249acb3ed1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "fe8afc0b5a5f"
+down_revision: str | None = "3b249acb3ed1"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """
     Upgrade schema: Change subscription_id from CHAR(100) to VARCHAR(100).
-    
+
     Steps:
     1. Trim existing subscription_id values to remove trailing spaces
     2. Change column type from CHAR to VARCHAR
@@ -42,18 +43,18 @@ def upgrade() -> None:
         SET subscription_id = TRIM(subscription_id)
         WHERE subscription_id IS NOT NULL
     """)
-    
+
     # Step 2: Schema migration - Change column type from CHAR(100) to VARCHAR(100)
     # PostgreSQL allows this with a simple ALTER COLUMN
     op.alter_column(
-        'subscriptions',
-        'subscription_id',
+        "subscriptions",
+        "subscription_id",
         existing_type=sa.CHAR(100),
         type_=sa.String(100),
         existing_nullable=True,
-        existing_comment="Reference to external subscription id (Razorpay subscription ID)"
+        existing_comment="Reference to external subscription id (Razorpay subscription ID)",
     )
-    
+
     print("✅ Migration complete: subscription_id changed from CHAR(100) to VARCHAR(100)")
     print("✅ All existing subscription_id values trimmed to remove spaces")
 
@@ -61,18 +62,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     """
     Downgrade schema: Change subscription_id from VARCHAR(100) back to CHAR(100).
-    
+
     Warning: This will re-add space padding to values!
     """
     # Change column type from VARCHAR(100) back to CHAR(100)
     op.alter_column(
-        'subscriptions',
-        'subscription_id',
+        "subscriptions",
+        "subscription_id",
         existing_type=sa.String(100),
         type_=sa.CHAR(100),
         existing_nullable=True,
-        existing_comment="Reference to external subscription id"
+        existing_comment="Reference to external subscription id",
     )
-    
+
     print("⚠️  Rollback complete: subscription_id changed back to CHAR(100)")
     print("⚠️  Note: Values will be space-padded again!")

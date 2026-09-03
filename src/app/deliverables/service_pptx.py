@@ -12,29 +12,27 @@ report-render-service's `POST /internal/render/presentation`. The real
 implementation (python-pptx, pptxgenjs, LibreOffice disclaimer-slide merge)
 lives there now, not in this file.
 """
-import json
-import os
-from typing import Tuple, Dict, List, Any, Optional
 
-from fastapi.concurrency import run_in_threadpool
+from typing import Any
+
 import httpx
+from fastapi.concurrency import run_in_threadpool
 
-from src.core.integrations.s3_utils import get_s3_instance, build_report_s3_prefix
-from src.config.log_helper import setup_logging
-from src.config.constants import S3_REPORTS_BASE_PATH, REPORT_RENDER_SERVICE_BASE_URL
-from src.core.cards.card_utils import convert_json_to_md, extract_markdown_tables
-from src.core.common.internal_auth import internal_headers
-from src.core.common.utils import extract_content
+from app.cards.service_cards import convert_json_to_md, extract_markdown_tables
+from app.core.constants import REPORT_RENDER_SERVICE_BASE_URL
+from app.core.logging import setup_logging
+from app.core.utils import extract_content
+from app.internal.dependencies import internal_headers
 
 logger = setup_logging(__file__)
 
 _RENDER_TIMEOUT = httpx.Timeout(connect=15.0, read=1800.0, write=60.0, pool=15.0)
 
 
-async def generate_markdown_from_report(report_id: str,cards: List[Dict[str, Any]]) -> str:
+async def generate_markdown_from_report(report_id: str, cards: list[dict[str, Any]]) -> str:
     """
     Generate markdown content from a report's cards.
-    
+
     Args:
         report_id: The ID of the report to generate markdown for
         generate_markdown_from_report
@@ -42,106 +40,154 @@ async def generate_markdown_from_report(report_id: str,cards: List[Dict[str, Any
         str: The generated markdown content
     """
     markdown_content = ""
-    
 
     if not cards:
         logger.error(f"No cards found for report ID: {report_id}")
         return ""
-    
+
     report_cards = []
     for card in cards:
-        if card.get('type') == 'title':
-            report_cards.append({
-                "section": [
-                    {
-                        "name": "title",
-                        "content": extract_content(card, "title"),
-                        "tables": [{"visualization": "", "table_id": "", "table_title": "", "s3_uri": ""}]
-                    }
-                ],
-                "sub_sections": [],
-                "citations": {},
-                "summary": ""
-            })
-
-        elif card.get('type') == 'subtitle':
-            report_cards.append({
-                "section": [
-                    {
-                        "name": "subtitle",
-                        "content": extract_content(card, "content"),
-                        "tables": [{"visualization": "", "table_id": "", "table_title": "", "s3_uri": ""}]
-                    }
-                ],
-                "sub_sections": [],
-                "citations": {},
-                "summary": ""
-            })
-
-        elif card.get('type') == 'toc':
-            report_cards.append({
-                "section": [
-                    {
-                        "name": "table_of_contents",
-                        "content": extract_content(card, "content"),
-                        "tables": [{"visualization": "", "table_id": "", "table_title": "", "s3_uri": ""}]
-                    }
-                ],
-                "sub_sections": [],
-                "citations": {},
-                "summary": ""
-            })
-
-        elif card.get('type') == 'es':
-            report_cards.append({
-                "section": [
-                    {
-                        "name": "executive_summary",
-                        "content": extract_content(card, "content"),
-                        "tables": [{"visualization": "", "table_id": "", "table_title": "", "s3_uri": ""}]
-                    }
-                ],
-                "sub_sections": [],
-                "citations": {},
-                "summary": ""
-            })
-
-        elif card.get('type') == 'section':
-            if card.get('section') and isinstance(card.get('section'), list):
-                report_cards.append({
-                    "section": card.get("section", []),
-                    "sub_sections": card.get("sub_sections", []),
-                    "citations": card.get("citations", {}),
-                    "summary": card.get("summary", "")
-                })
-            else:
-                report_cards.append({
+        if card.get("type") == "title":
+            report_cards.append(
+                {
                     "section": [
                         {
-                            "name": card.get("title", ""),
-                            "content": extract_content(card, "content"),
-                            "tables": [{"visualization": "", "table_id": "", "table_title": "", "s3_uri": ""}]
+                            "name": "title",
+                            "content": extract_content(card, "title"),
+                            "tables": [
+                                {
+                                    "visualization": "",
+                                    "table_id": "",
+                                    "table_title": "",
+                                    "s3_uri": "",
+                                }
+                            ],
                         }
                     ],
-                    "sub_sections": card.get("sub_sections", []),
-                    "citations": card.get("citations", {}),
-                    "summary": card.get("summary", "")
-                })
+                    "sub_sections": [],
+                    "citations": {},
+                    "summary": "",
+                }
+            )
+
+        elif card.get("type") == "subtitle":
+            report_cards.append(
+                {
+                    "section": [
+                        {
+                            "name": "subtitle",
+                            "content": extract_content(card, "content"),
+                            "tables": [
+                                {
+                                    "visualization": "",
+                                    "table_id": "",
+                                    "table_title": "",
+                                    "s3_uri": "",
+                                }
+                            ],
+                        }
+                    ],
+                    "sub_sections": [],
+                    "citations": {},
+                    "summary": "",
+                }
+            )
+
+        elif card.get("type") == "toc":
+            report_cards.append(
+                {
+                    "section": [
+                        {
+                            "name": "table_of_contents",
+                            "content": extract_content(card, "content"),
+                            "tables": [
+                                {
+                                    "visualization": "",
+                                    "table_id": "",
+                                    "table_title": "",
+                                    "s3_uri": "",
+                                }
+                            ],
+                        }
+                    ],
+                    "sub_sections": [],
+                    "citations": {},
+                    "summary": "",
+                }
+            )
+
+        elif card.get("type") == "es":
+            report_cards.append(
+                {
+                    "section": [
+                        {
+                            "name": "executive_summary",
+                            "content": extract_content(card, "content"),
+                            "tables": [
+                                {
+                                    "visualization": "",
+                                    "table_id": "",
+                                    "table_title": "",
+                                    "s3_uri": "",
+                                }
+                            ],
+                        }
+                    ],
+                    "sub_sections": [],
+                    "citations": {},
+                    "summary": "",
+                }
+            )
+
+        elif card.get("type") == "section":
+            if card.get("section") and isinstance(card.get("section"), list):
+                report_cards.append(
+                    {
+                        "section": card.get("section", []),
+                        "sub_sections": card.get("sub_sections", []),
+                        "citations": card.get("citations", {}),
+                        "summary": card.get("summary", ""),
+                    }
+                )
+            else:
+                report_cards.append(
+                    {
+                        "section": [
+                            {
+                                "name": card.get("title", ""),
+                                "content": extract_content(card, "content"),
+                                "tables": [
+                                    {
+                                        "visualization": "",
+                                        "table_id": "",
+                                        "table_title": "",
+                                        "s3_uri": "",
+                                    }
+                                ],
+                            }
+                        ],
+                        "sub_sections": card.get("sub_sections", []),
+                        "citations": card.get("citations", {}),
+                        "summary": card.get("summary", ""),
+                    }
+                )
         else:
-            logger.error(f"Unknown card type: {card.get('type')} for report_id: {report_id} at sequence: {card.get('sequence')}")
+            logger.error(
+                f"Unknown card type: {card.get('type')} for report_id: {report_id} at sequence: {card.get('sequence')}"
+            )
             continue
-        
+
         # Convert the cards to markdown
         # markdown_content = convert_json_to_md(report_cards)
     markdown_content = await run_in_threadpool(convert_json_to_md, report_cards)
-        
+
     return markdown_content
 
 
-def _extract_table_markdown_lines(tables: list) -> List[str]:
+def _extract_table_markdown_lines(tables: list) -> list[str]:
     """Return non-empty table_markdown strings from a tables list."""
     lines = []
-    for t in (tables or []):
+    for t in tables or []:
         if isinstance(t, dict):
             md = (t.get("table_markdown") or "").strip()
             if md:
@@ -149,7 +195,7 @@ def _extract_table_markdown_lines(tables: list) -> List[str]:
     return lines
 
 
-def _extract_inline_tables(content: Any) -> List[str]:
+def _extract_inline_tables(content: Any) -> list[str]:
     """Extract inline markdown tables from a content field (str or dict).
 
     Falls back to this when table_markdown is NULL in the DB — tables may be
@@ -163,7 +209,7 @@ def _extract_inline_tables(content: Any) -> List[str]:
     return [t.strip() for t in (tables or []) if t.strip()]
 
 
-def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
+def _build_pptx_markdown_from_cards(cards: list[dict[str, Any]]) -> str:
     """Build condensed markdown for PPTX generation.
 
     Uses each card's pre-computed ``summary`` field instead of full section
@@ -181,7 +227,7 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
     Falls back to the first 400 chars of ``content`` when ``summary`` is empty.
     Tables are always included verbatim so the interpreter can assign chart types.
     """
-    md_lines: List[str] = []
+    md_lines: list[str] = []
     section_counter = 0
 
     for card in cards:
@@ -213,7 +259,11 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
             if not section_name and card.get("title"):
                 section_name = card["title"]
 
-            heading = f"## {section_counter}. {section_name}" if section_name else f"## Section {section_counter}"
+            heading = (
+                f"## {section_counter}. {section_name}"
+                if section_name
+                else f"## Section {section_counter}"
+            )
             md_lines.append(f"{heading}\n")
 
             # --- section body: summary preferred, brief content fallback ---
@@ -222,7 +272,7 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
                 # fallback: first 500 chars of section content
                 raw_content = ""
                 if isinstance(section_list, list) and section_list:
-                    raw_content = (section_list[0].get("content") or "")
+                    raw_content = section_list[0].get("content") or ""
                     if isinstance(raw_content, dict):
                         raw_content = raw_content.get("content") or ""
                 summary = raw_content[:500].strip()
@@ -233,7 +283,7 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
             # Build a table_id → table_markdown lookup from section-level tables
             # (table_markdown lives on the ORM Table model, exposed via
             # card["section"][0]["tables"]; sub-sections only store table_id).
-            tid_to_md: Dict[str, str] = {}
+            tid_to_md: dict[str, str] = {}
             for t in section_tables:
                 if isinstance(t, dict):
                     tid = t.get("table_id") or ""
@@ -253,7 +303,7 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
                     md_lines.append(f"### {section_counter}.{sub_idx + 1}. {sub_name}\n")
 
                 sub_tables_added = False
-                for t in (sub.get("tables") or []):
+                for t in sub.get("tables") or []:
                     if not isinstance(t, dict):
                         continue
                     tmd = (t.get("table_markdown") or "").strip()
@@ -304,7 +354,7 @@ def _build_pptx_markdown_from_cards(cards: List[Dict[str, Any]]) -> str:
 
 async def generate_pptx_markdown_from_report(
     report_id: str,
-    cards: List[Dict[str, Any]],
+    cards: list[dict[str, Any]],
 ) -> str:
     """Condensed markdown for PPTX generation.
 
@@ -369,17 +419,16 @@ def content_slides_for_report_length(report_length: str | None) -> int:
     return content_slides_for_report(report_type=None, length=report_length)
 
 
-
 async def generate_pptx_and_upload_s3(
     md_content: str,
     total_slides: int,
     s3_key: str,
     report_id: str,
-    brand_colors: Optional[List[str]] = None,
+    brand_colors: list[str] | None = None,
     generation_mode: str = "template",
-    user_id: Optional[str] = None,
-    chat_id: Optional[str] = None,
-    report_version_id: Optional[str] = None,
+    user_id: str | None = None,
+    chat_id: str | None = None,
+    report_version_id: str | None = None,
 ) -> str:
     """Same signature/contract as the original: builds a PPTX from markdown,
     appends the disclaimer slide, uploads to S3, returns the S3 URI. The

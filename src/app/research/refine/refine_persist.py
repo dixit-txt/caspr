@@ -20,22 +20,27 @@ Caller must still:
 thread policy then share one session commit so they stay together. If that
 second step fails, the card is already saved (same as today's /refine-card).
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.logging import setup_logging
-from src.db.ask_caspr_db import update_ask_caspr_chat_after_refine
-from src.db.async_db_functions import (
-    get_latest_ask_caspr_version,
-    insert_ask_caspr_chat_entry,
+from app.cards.repository import (
     refine_card_in_db,
     update_refinement_history,
-    update_report_status_if_needed,
+)
+from app.chats.repository import (
+    get_latest_ask_caspr_version,
+    insert_ask_caspr_chat_entry,
 )
 from app.core.enums import ReportStatus
+from app.core.logging import setup_logging
+from app.internal.repository_ask_caspr import update_ask_caspr_chat_after_refine
+from app.reports.repository import (
+    update_report_status_if_needed,
+)
 
 logger = setup_logging(__file__)
 
@@ -47,17 +52,17 @@ _VALID_THREAD_POLICIES = frozenset({THREAD_POLICY_RESET, THREAD_POLICY_KEEP})
 async def persist_refined_card(
     session: AsyncSession,
     report_id: str,
-    updated_card: Dict[str, Any],
+    updated_card: dict[str, Any],
     user_instruction: str,
     refinement_type: str,
-    table_id_markdown_map: Dict[str, str],
-    subsection_id: Optional[str],
+    table_id_markdown_map: dict[str, str],
+    subsection_id: str | None,
     updated_refinement_history: list,
     section_id: str,
     thread_policy: str,
-    entry_id: Optional[str] = None,
-    chat: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    entry_id: str | None = None,
+    chat: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Save the refined card, history, thread policy, and REDO_ANALYSIS.
 
     Returns the fields ``/refine-card`` needs: ``success``, ``version``,
@@ -139,8 +144,7 @@ async def persist_refined_card(
                     f"Failed to update Ask Caspr chat after refine: {keep_result.get('error')}"
                 )
             logger.info(
-                f"Kept Ask Caspr thread entry_id={entry_id} "
-                f"card_version={new_card_version}"
+                f"Kept Ask Caspr thread entry_id={entry_id} card_version={new_card_version}"
             )
 
         await session.commit()

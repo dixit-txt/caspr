@@ -1,22 +1,21 @@
 """constants.py: Constants for the Casper backend"""
-from datetime import timedelta
+
 import os
-import re
+from datetime import timedelta
 from pathlib import Path
-from dotenv import load_dotenv
+
 import boto3
+from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
+
 # from langchain_aws import ChatBedrock  # Bedrock disabled — using direct Anthropic API instead
 # from langchain_groq import ChatGroq
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import OpenSearchVectorSearch
-from opensearchpy import RequestsHttpConnection
-from requests_aws4auth import AWS4Auth
-from pydantic import BaseModel, Field
-from app.core.logging import setup_logging   
-from botocore.config import Config
 from langchain_openai import ChatOpenAI
-from openai import OpenAI, AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
+from pydantic import BaseModel, Field
+
+from app.core.logging import setup_logging
+
 # from langchain_anthropic import ChatAnthropic
 
 logger = setup_logging(__name__)
@@ -26,7 +25,7 @@ if load_dotenv():
 else:
     logger.info("No .env file found")
 
-ENVIRONMENT = os.getenv('ENVIRONMENT').upper().strip()
+ENVIRONMENT = os.getenv("ENVIRONMENT").upper().strip()
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -34,40 +33,42 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PPTX_GENERATOR_ROOT = Path(ROOT_DIR) / "pptx_generator"
 PPTX_CASPR_TEMPLATE_PATH = PPTX_GENERATOR_ROOT / "masterslides" / "caspr" / "caspr.pptx"
-PPTX_ACCENTURE_TEMPLATE_PATH = PPTX_GENERATOR_ROOT / "masterslides" / "Template_Accenture Tech Acquisition Analysis.pptx"
+PPTX_ACCENTURE_TEMPLATE_PATH = (
+    PPTX_GENERATOR_ROOT / "masterslides" / "Template_Accenture Tech Acquisition Analysis.pptx"
+)
 
 # SlideSpeak API Configuration
-SLIDESPEAK_API_URL = os.getenv('SLIDESPEAK_API_URL', 'https://api.slidespeak.co/api/v1')
-SLIDESPEAK_API_KEY = os.getenv('SLIDESPEAK_API_KEY')
-SLIDESPEAK_TEMPLATE_ID = os.getenv('SLIDESPEAK_TEMPLATE_ID')
+SLIDESPEAK_API_URL = os.getenv("SLIDESPEAK_API_URL", "https://api.slidespeak.co/api/v1")
+SLIDESPEAK_API_KEY = os.getenv("SLIDESPEAK_API_KEY")
+SLIDESPEAK_TEMPLATE_ID = os.getenv("SLIDESPEAK_TEMPLATE_ID")
 # Redis configuration
-REDIS_HOST = os.getenv('REDIS_HOST')
+REDIS_HOST = os.getenv("REDIS_HOST")
 # if not REDIS_HOST:
 #     if ENVIRONMENT == "DEV":
 #         REDIS_HOST = 'casprbackend.ezlab.in'
 #     elif ENVIRONMENT == "PROD":
 #         REDIS_HOST = 'caspr.ai'
 # REDIS_HOST = 'localhost'
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
-REDIS_DB = int(os.getenv('REDIS_DB', 0))
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
 # TTL for Redis keys (24 hours in seconds)
-REDIS_TTL = int(os.getenv('REDIS_TTL', 86400))  # 24 hours = 86400 seconds
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+REDIS_TTL = int(os.getenv("REDIS_TTL", 86400))  # 24 hours = 86400 seconds
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 # Image Generation Models
-GEMINI_IMAGE_MODEL = os.getenv('GEMINI_IMAGE_MODEL')
-IMAGE_GEN_MODEL = os.getenv('IMAGE_GEN_MODEL')
-OPENAI_IMAGE_MODEL = os.getenv('OPENAI_IMAGE_MODEL')
+GEMINI_IMAGE_MODEL = os.getenv("GEMINI_IMAGE_MODEL")
+IMAGE_GEN_MODEL = os.getenv("IMAGE_GEN_MODEL")
+OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL")
 
 # AWS Bedrock Constants
-BEDROCK_ACCESS_KEY_ID = os.getenv('BEDROCK_ACCESS_KEY_ID')
-BEDROCK_SECRET_ACCESS_KEY = os.getenv('BEDROCK_SECRET_ACCESS_KEY')
-BEDROCK_REGION_NAME = os.getenv('BEDROCK_REGION_NAME')
-BEDROCK_SESSION_TOKEN = os.getenv('BEDROCK_SESSION_TOKEN', '')
-BEDROCK_LLM_ID = os.getenv('BEDROCK_LLM_ID')
-BEDROCK_MODEL_SONNET = os.getenv('BEDROCK_MODEL_SONNET', '')
-BEDROCK_MODEL_OPUS = os.getenv('BEDROCK_MODEL_OPUS', '')
-BEDROCK_MODEL_HAIKU = os.getenv('BEDROCK_MODEL_HAIKU', '')
+BEDROCK_ACCESS_KEY_ID = os.getenv("BEDROCK_ACCESS_KEY_ID")
+BEDROCK_SECRET_ACCESS_KEY = os.getenv("BEDROCK_SECRET_ACCESS_KEY")
+BEDROCK_REGION_NAME = os.getenv("BEDROCK_REGION_NAME")
+BEDROCK_SESSION_TOKEN = os.getenv("BEDROCK_SESSION_TOKEN", "")
+BEDROCK_LLM_ID = os.getenv("BEDROCK_LLM_ID")
+BEDROCK_MODEL_SONNET = os.getenv("BEDROCK_MODEL_SONNET", "")
+BEDROCK_MODEL_OPUS = os.getenv("BEDROCK_MODEL_OPUS", "")
+BEDROCK_MODEL_HAIKU = os.getenv("BEDROCK_MODEL_HAIKU", "")
 # bedrock_client = boto3.client(
 #     service_name="bedrock-runtime",
 #     aws_access_key_id=BEDROCK_ACCESS_KEY_ID,
@@ -95,8 +96,8 @@ BEDROCK_MODEL_HAIKU = os.getenv('BEDROCK_MODEL_HAIKU', '')
 
 # os.environ["ANTHROPIC_API_KEY"] = os.getenv('ANTHROPIC_API_KEY')
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL_ID = os.getenv('ANTHROPIC_MODEL_ID')
-ANTHROPIC_MODEL_FOR_HTML = os.getenv('ANTHROPIC_API_MODEL')
+ANTHROPIC_MODEL_ID = os.getenv("ANTHROPIC_MODEL_ID")
+ANTHROPIC_MODEL_FOR_HTML = os.getenv("ANTHROPIC_API_MODEL")
 
 
 def get_anthropic_output_config(model_id: str | None) -> dict:
@@ -132,7 +133,7 @@ ANTHROPIC_LLM = ChatAnthropic(
     **ANTHROPIC_OUTPUT_CONFIG,
 )
 
-logger.info(f"LLM initialized")
+logger.info("LLM initialized")
 
 
 # HuggingFace Constants
@@ -152,7 +153,7 @@ logger.info(f"LLM initialized")
 
 # service = "es"  # must set the service as 'es'
 # credentials = boto3.Session(
-#     aws_access_key_id=AWS_OPENSEARCH_ACCESS_KEY_ID, 
+#     aws_access_key_id=AWS_OPENSEARCH_ACCESS_KEY_ID,
 #     aws_secret_access_key=AWS_OPENSEARCH_SECRET_ACCESS_KEY
 # ).get_credentials()
 
@@ -161,7 +162,7 @@ logger.info(f"LLM initialized")
 #     AWS_OPENSEARCH_SECRET_ACCESS_KEY,
 #     AWS_OPENSEARCH_REGION_NAME,
 #     service,
-#     session_token=credentials.token       
+#     session_token=credentials.token
 # )
 
 # VECTOR_DB = OpenSearchVectorSearch(
@@ -175,7 +176,7 @@ logger.info(f"LLM initialized")
 #     index_name=OPENSEARCH_INDEX,
 #     engine="faiss"
 # )
-logger.info(f"VECTOR_DB initialized")
+logger.info("VECTOR_DB initialized")
 
 # # Tavily Constants
 # TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
@@ -185,26 +186,26 @@ logger.info(f"VECTOR_DB initialized")
 
 
 # Secrets Manager Constants
-SECRETS_REGION_NAME = os.getenv('SECRETS_REGION_NAME')
-SECRETS_NAME = os.getenv('SECRETS_NAME')
-SECRETS_ACCESS_KEY_ID = os.getenv('SECRETS_ACCESS_KEY_ID')
-SECRETS_SECRET_ACCESS_KEY = os.getenv('SECRETS_SECRET_ACCESS_KEY')
+SECRETS_REGION_NAME = os.getenv("SECRETS_REGION_NAME")
+SECRETS_NAME = os.getenv("SECRETS_NAME")
+SECRETS_ACCESS_KEY_ID = os.getenv("SECRETS_ACCESS_KEY_ID")
+SECRETS_SECRET_ACCESS_KEY = os.getenv("SECRETS_SECRET_ACCESS_KEY")
 session = boto3.session.Session(
     aws_access_key_id=SECRETS_ACCESS_KEY_ID,
     aws_secret_access_key=SECRETS_SECRET_ACCESS_KEY,
-    region_name=SECRETS_REGION_NAME
+    region_name=SECRETS_REGION_NAME,
 )
-SECRETS_CLIENT = session.client('secretsmanager')
-logger.info(f"SECRETS_CLIENT initialized")
+SECRETS_CLIENT = session.client("secretsmanager")
+logger.info("SECRETS_CLIENT initialized")
 
 
 # S3 Constants
-LOCAL_S3 = None if os.getenv('LOCAL_S3') == 'None' else os.getenv('LOCAL_S3', None)
-S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
-S3_ACCESS_KEY_ID = os.getenv('S3_ACCESS_KEY_ID')
-S3_SECRET_ACCESS_KEY = os.getenv('S3_SECRET_ACCESS_KEY')
-S3_REGION_NAME = os.getenv('S3_REGION_NAME')
-S3_REPORTS_BASE_PATH = os.getenv('S3_REPORTS_BASE_PATH')
+LOCAL_S3 = None if os.getenv("LOCAL_S3") == "None" else os.getenv("LOCAL_S3", None)
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID")
+S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
+S3_REGION_NAME = os.getenv("S3_REGION_NAME")
+S3_REPORTS_BASE_PATH = os.getenv("S3_REPORTS_BASE_PATH")
 # logger.info(f"S3_BUCKET_NAME: {S3_BUCKET_NAME}")
 # logger.info(f"S3_REGION_NAME: {S3_REGION_NAME}")
 # logger.info(f"S3_ACCESS_KEY_ID: {S3_ACCESS_KEY_ID}")
@@ -215,20 +216,20 @@ S3_REPORTS_BASE_PATH = os.getenv('S3_REPORTS_BASE_PATH')
 # Document search backend: "openai" (vector store + file_search) or "grep" (local grep_agent)
 # Default is "grep" — OpenAI vector store approach has been replaced by grep_agent_2.
 # Set FILE_SEARCH_MODE=openai in the environment to revert to the OpenAI approach.
-FILE_SEARCH_MODE = os.getenv('FILE_SEARCH_MODE', 'grep').lower().strip()
+FILE_SEARCH_MODE = os.getenv("FILE_SEARCH_MODE", "grep").lower().strip()
 
 
 def use_grep_file_search() -> bool:
     """True when FILE_SEARCH_MODE=grep (local grep_agent_2 instead of OpenAI file_search)."""
-    return FILE_SEARCH_MODE == 'grep'
+    return FILE_SEARCH_MODE == "grep"
 
 
 # OpenAI Constants
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_CHAT_MODEL_ID = os.getenv("OPENAI_CHAT_MODEL_ID", "gpt-4o")
-OPENAI_LLM_LANGCHAIN = ChatOpenAI(api_key=OPENAI_API_KEY, 
-                model=OPENAI_CHAT_MODEL_ID,
-                temperature=0.0)
+OPENAI_LLM_LANGCHAIN = ChatOpenAI(
+    api_key=OPENAI_API_KEY, model=OPENAI_CHAT_MODEL_ID, temperature=0.0
+)
 
 # # Groq Constants
 # GROQ_API_KEY = os.getenv('GROQ_API_KEY')
@@ -241,11 +242,11 @@ OPENAI_LLM_LANGCHAIN = ChatOpenAI(api_key=OPENAI_API_KEY,
 # )
 # logger.info(f"GROQ_LLM initialized with model: {GROQ_LLM_ID}")
 
-ANTHROPIC_OPUS_4_MODEL_ID = os.getenv('ANTHROPIC_OPUS_4_MODEL_ID')
+ANTHROPIC_OPUS_4_MODEL_ID = os.getenv("ANTHROPIC_OPUS_4_MODEL_ID")
 
 # Postgres Constants
 DB_CONNECTION_LINK = "postgresql+asyncpg://{}:{}@{}/{}".format(  # async version
-# DB_CONNECTION_LINK = "postgresql+psycopg2://{}:{}@{}/{}".format(  # sync version
+    # DB_CONNECTION_LINK = "postgresql+psycopg2://{}:{}@{}/{}".format(  # sync version
     os.getenv("STATIC_DATABASE_USER"),
     os.getenv("STATIC_DATABASE_PASS"),
     os.getenv("STATIC_DATABASE_URL"),
@@ -253,24 +254,24 @@ DB_CONNECTION_LINK = "postgresql+asyncpg://{}:{}@{}/{}".format(  # async version
 )
 
 # Cloudwatch Constants
-LOG_STREAM=os.getenv('LOG_STREAM')
-LOG_GROUP_NAME=os.getenv('LOG_GROUP_NAME')
-CLOUDWATCH_AWS_REGION=os.getenv('CLOUDWATCH_AWS_REGION')
-CLOUDWATCH_AWS_KEY_ID=os.getenv('CLOUDWATCH_AWS_KEY_ID')
-CLOUDWATCH_AWS_SECRET_KEY=os.getenv('CLOUDWATCH_AWS_SECRET_KEY')
-SUGGESTION_LOG_GROUP_NAME=os.getenv('SUGGESTION_LOG_GROUP_NAME')
+LOG_STREAM = os.getenv("LOG_STREAM")
+LOG_GROUP_NAME = os.getenv("LOG_GROUP_NAME")
+CLOUDWATCH_AWS_REGION = os.getenv("CLOUDWATCH_AWS_REGION")
+CLOUDWATCH_AWS_KEY_ID = os.getenv("CLOUDWATCH_AWS_KEY_ID")
+CLOUDWATCH_AWS_SECRET_KEY = os.getenv("CLOUDWATCH_AWS_SECRET_KEY")
+SUGGESTION_LOG_GROUP_NAME = os.getenv("SUGGESTION_LOG_GROUP_NAME")
 
 # Perplexity API Key
-PERPLEXITY_API_KEY = os.getenv('PERPLEXITY_API_KEY')
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 # Parallel API Key
-PARALLEL_API_KEY = os.getenv('PARALLEL_API_KEY')
+PARALLEL_API_KEY = os.getenv("PARALLEL_API_KEY")
 
 # Gemini API Key
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-IMAGE_TO_TEXT_MODEL_ID = os.getenv('IMAGE_TO_TEXT_MODEL_ID')
-TEXT_TO_IMAGE_MODEL_ID = os.getenv('TEXT_TO_IMAGE_MODEL_ID')
-GEMINI_ES_MODEL_ID=os.getenv('GEMINI_ES_MODEL_ID')
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+IMAGE_TO_TEXT_MODEL_ID = os.getenv("IMAGE_TO_TEXT_MODEL_ID")
+TEXT_TO_IMAGE_MODEL_ID = os.getenv("TEXT_TO_IMAGE_MODEL_ID")
+GEMINI_ES_MODEL_ID = os.getenv("GEMINI_ES_MODEL_ID")
 
 # HeyGen
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
@@ -281,9 +282,9 @@ HEYGEN_FOLDER_ID = os.getenv("HEYGEN_FOLDER_ID")
 REPORT_GEN_MESSAGE = "Your report has been generated successfully. You can download it."
 
 # ── Microservices split — base URLs for the services this code now calls over
-# HTTP instead of in-process. See src/core/grep_agent_2/__init__.py,
-# src/core/report_util/entry_point.py, src/core/infographics/one_pager.py,
-# and src/core/report_util/pptx_utils.py for the shim call sites.
+# HTTP instead of in-process. See app.adapters.grep_agent_2/__init__.py,
+# app.deliverables.service_entry.py, app.research.infographics/one_pager.py,
+# and app.deliverables.service_pptx.py for the shim call sites.
 #
 # The defaults are the LOCAL ones (`uv run uvicorn ...` on this laptop), not
 # Docker DNS names. `http://grep-service:8010` and
@@ -295,7 +296,9 @@ REPORT_GEN_MESSAGE = "Your report has been generated successfully. You can downl
 # http://render-report:8020; anything else falls back to localhost, which is
 # right for a developer running four uvicorns.
 GREP_SERVICE_BASE_URL = os.getenv("GREP_SERVICE_BASE_URL", "http://localhost:8010")
-REPORT_RENDER_SERVICE_BASE_URL = os.getenv("REPORT_RENDER_SERVICE_BASE_URL", "http://localhost:8020")
+REPORT_RENDER_SERVICE_BASE_URL = os.getenv(
+    "REPORT_RENDER_SERVICE_BASE_URL", "http://localhost:8020"
+)
 
 # Shared secret proving to a sibling service that an /internal/* caller is us
 # (render-report/src/resources/dependencies.py checks it as the
@@ -303,8 +306,9 @@ REPORT_RENDER_SERVICE_BASE_URL = os.getenv("REPORT_RENDER_SERVICE_BASE_URL", "ht
 # skips the check so a plain curl works; render-report refuses to boot with it
 # unset in production. The shims send the header only when this is set, so
 # turning internal auth on is a matter of setting one variable on both sides —
-# see src/core/report_util/entry_point.py.
+# see app.deliverables.service_entry.py.
 INTERNAL_API_SECRET = os.getenv("INTERNAL_API_SECRET", "")
+
 
 # Chat Title Prompt
 class ChatTitle(BaseModel):
@@ -312,6 +316,8 @@ class ChatTitle(BaseModel):
         description="A concise chat title that captures the main topic or purpose of the conversation",
         # max_length=100
     )
+
+
 # STRUCTURED_LLM = LLM.with_structured_output(ChatTitle)  # Bedrock disabled — using direct Anthropic API instead
 # include_raw=True keeps the underlying AIMessage (with usage_metadata) alongside
 # the parsed Pydantic object, instead of discarding it.
@@ -456,7 +462,7 @@ Caspr Research is a full-stack AI market research firm that delivers real time, 
 #     "https://www.nbk.com/",
 #     "https://www.nbkwealth.com/",
 #     "https://www.emiratesnbdresearch.com/",
-# ] 
+# ]
 
 # JWT Constants
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -465,8 +471,12 @@ JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS"))
 FORGOT_PASSWORD_EXPIRE_MINUTES = int(os.getenv("FORGOT_PASSWORD_EXPIRE_MINUTES", "10"))
 SIGNUP_VERIFICATION_EXPIRE_MINUTES = int(os.getenv("SIGNUP_VERIFICATION_EXPIRE_MINUTES", "15"))
-SIGNUP_VERIFICATION_EMAIL_COOLDOWN_SECONDS = int(os.getenv("SIGNUP_VERIFICATION_EMAIL_COOLDOWN_SECONDS", "30"))
-FORGOT_PASSWORD_EMAIL_COOLDOWN_SECONDS = int(os.getenv("FORGOT_PASSWORD_EMAIL_COOLDOWN_SECONDS", "30"))
+SIGNUP_VERIFICATION_EMAIL_COOLDOWN_SECONDS = int(
+    os.getenv("SIGNUP_VERIFICATION_EMAIL_COOLDOWN_SECONDS", "30")
+)
+FORGOT_PASSWORD_EMAIL_COOLDOWN_SECONDS = int(
+    os.getenv("FORGOT_PASSWORD_EMAIL_COOLDOWN_SECONDS", "30")
+)
 
 
 if ENVIRONMENT == "DEV":
@@ -482,11 +492,7 @@ else:
     # FRONTEND_VERIFICATION_URL = "https://caspr.ai/verify-account"
     FRONTEND_VERIFICATION_URL = "https://caspr.ai/get-started/thanks"
     FRONTEND_URL = "https://caspr.ai"
-    ALLOWED_ORIGINS = [
-        "https://caspr.ai",
-        "https://www.caspr.ai",
-        "https://wallet.caspr.ai"
-    ]
+    ALLOWED_ORIGINS = ["https://caspr.ai", "https://www.caspr.ai", "https://wallet.caspr.ai"]
 
 # JWT Settings
 JWT_EXPIRATION_DELTA = timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -502,42 +508,62 @@ EMAIL_CONFIG = {
     "SENDER_EMAIL": os.getenv("SENDER_EMAIL"),  # Replace with your email
     "APP_PASSWORD": os.getenv("EMAIL_PASS"),  # Replace with your app password
     "USE_TLS": True,
-    "CC_EMAILS": os.getenv("EMAIL_CC").split(','),
-    "BCC_EMAILS": os.getenv("EMAIL_BCC").split(',')
+    "CC_EMAILS": os.getenv("EMAIL_CC").split(","),
+    "BCC_EMAILS": os.getenv("EMAIL_BCC").split(","),
     # "BCC_EMAILS": ['naman.bhatia@ez.works']
 }
 
 # Subscriber Email Configuration
 SUBSCRIBER_SENDER_EMAIL = os.getenv("SUBSCRIBER_SENDER_EMAIL")
 SUBSCRIBER_SENDER_EMAIL_PASS = os.getenv("SUBSCRIBER_SENDER_EMAIL_PASS")
-SUBSCRIBER_TO_EMAILS = [email.strip() for email in os.getenv("SUBSCRIBER_TO_EMAILS", "").split(",") if email.strip()]
-SUBSCRIBER_CC_EMAILS = [email.strip() for email in os.getenv("SUBSCRIBER_CC_EMAILS", "").split(",") if email.strip()]
-SUBSCRIBER_BCC_EMAILS = [email.strip() for email in os.getenv("SUBSCRIBER_BCC_EMAILS", "").split(",") if email.strip()]
+SUBSCRIBER_TO_EMAILS = [
+    email.strip() for email in os.getenv("SUBSCRIBER_TO_EMAILS", "").split(",") if email.strip()
+]
+SUBSCRIBER_CC_EMAILS = [
+    email.strip() for email in os.getenv("SUBSCRIBER_CC_EMAILS", "").split(",") if email.strip()
+]
+SUBSCRIBER_BCC_EMAILS = [
+    email.strip() for email in os.getenv("SUBSCRIBER_BCC_EMAILS", "").split(",") if email.strip()
+]
 
 # Request Email Configuration
 REQUEST_SENDER_EMAIL = os.getenv("REQUEST_SENDER_EMAIL")
 REQUEST_SENDER_EMAIL_PASS = os.getenv("REQUEST_SENDER_EMAIL_PASS")
-REQUEST_TO_EMAILS = [email.strip() for email in os.getenv("REQUEST_TO_EMAILS", "").split(",") if email.strip()]
-REQUEST_CC_EMAILS = [email.strip() for email in os.getenv("REQUEST_CC_EMAILS", "").split(",") if email.strip()]
-REQUEST_BCC_EMAILS = [email.strip() for email in os.getenv("REQUEST_BCC_EMAILS", "").split(",") if email.strip()]
+REQUEST_TO_EMAILS = [
+    email.strip() for email in os.getenv("REQUEST_TO_EMAILS", "").split(",") if email.strip()
+]
+REQUEST_CC_EMAILS = [
+    email.strip() for email in os.getenv("REQUEST_CC_EMAILS", "").split(",") if email.strip()
+]
+REQUEST_BCC_EMAILS = [
+    email.strip() for email in os.getenv("REQUEST_BCC_EMAILS", "").split(",") if email.strip()
+]
 
 
 # Book a Call Email Configuration
 BOOK_CALL_SENDER_EMAIL = os.getenv("BOOK_CALL_SENDER_EMAIL")
 BOOK_CALL_SENDER_EMAIL_PASS = os.getenv("BOOK_CALL_SENDER_EMAIL_PASS")
-BOOK_CALL_TO_EMAILS = [email.strip() for email in os.getenv("BOOK_CALL_TO_EMAILS", "").split(",") if email.strip()]
-BOOK_CALL_BCC_EMAILS = [email.strip() for email in os.getenv("BOOK_CALL_BCC_EMAILS", "").split(",") if email.strip()]
+BOOK_CALL_TO_EMAILS = [
+    email.strip() for email in os.getenv("BOOK_CALL_TO_EMAILS", "").split(",") if email.strip()
+]
+BOOK_CALL_BCC_EMAILS = [
+    email.strip() for email in os.getenv("BOOK_CALL_BCC_EMAILS", "").split(",") if email.strip()
+]
 
 # Error Alert Email Configuration
 ERROR_ALERT_SENDER_EMAIL = os.getenv("ERROR_ALERT_SENDER_EMAIL")
 ERROR_ALERT_SENDER_EMAIL_PASS = os.getenv("ERROR_ALERT_SENDER_EMAIL_PASS")
-ERROR_ALERT_EMAILS = [email.strip() for email in os.getenv("ERROR_ALERT_EMAILS", "").split(",") if email.strip()]
+ERROR_ALERT_EMAILS = [
+    email.strip() for email in os.getenv("ERROR_ALERT_EMAILS", "").split(",") if email.strip()
+]
 ERROR_DIGEST_INTERVAL_SECONDS = max(60, int(os.getenv("ERROR_DIGEST_INTERVAL_SECONDS", "300")))
 
 # Payment Alert Email Configuration
 PAYMENT_ALERT_SENDER_EMAIL = os.getenv("PAYMENT_ALERT_SENDER_EMAIL")
 PAYMENT_ALERT_SENDER_EMAIL_PASS = os.getenv("PAYMENT_ALERT_SENDER_EMAIL_PASS")
-PAYMENT_ALERT_EMAILS = [email.strip() for email in os.getenv("PAYMENT_ALERT_EMAILS", "").split(",") if email.strip()]
+PAYMENT_ALERT_EMAILS = [
+    email.strip() for email in os.getenv("PAYMENT_ALERT_EMAILS", "").split(",") if email.strip()
+]
 
 # ============================================================================
 # Wallet/Token System Constants
@@ -548,8 +574,8 @@ SIGNUP_BONUS_TOKENS = int(os.getenv("SIGNUP_BONUS_TOKENS", "25000"))
 REPORT_GENERATION_COST = int(os.getenv("REPORT_GENERATION_COST", "12500"))
 TOKEN_EXPIRY_DAYS = int(os.getenv("TOKEN_EXPIRY_DAYS", "365"))
 
-MAX_REPORT_VERSIONS_FREE = 2   # free-tier per-report version cap
-MAX_REPORT_VERSIONS_PAID = 5   # plus/pro per-report version cap
+MAX_REPORT_VERSIONS_FREE = 2  # free-tier per-report version cap
+MAX_REPORT_VERSIONS_PAID = 5  # plus/pro per-report version cap
 
 # Subscription tier monthly costs in USD
 TIER_COST_USD = {
@@ -560,86 +586,35 @@ TIER_COST_USD = {
 SUBSCRIPTION_INFO = {
     "yearly": {
         "free": {
-            "default": {
-                "cost": 0,
-                "currency": "USD",
-                "tokens_per_month": 0
-            },
-            "in": {
-                "cost": 0,
-                "currency": "INR",
-                "tokens_per_month": 0
-            }
+            "default": {"cost": 0, "currency": "USD", "tokens_per_month": 0},
+            "in": {"cost": 0, "currency": "INR", "tokens_per_month": 0},
         },
-        "plus":{
-            "in": {
-                "cost": 47988,
-                "currency": "INR",
-                "tokens_per_month": 25000
-            },
-            "default": {
-                "cost": 600,
-                "currency": "USD",
-                "tokens_per_month": 25000
-            }
+        "plus": {
+            "in": {"cost": 47988, "currency": "INR", "tokens_per_month": 25000},
+            "default": {"cost": 600, "currency": "USD", "tokens_per_month": 25000},
         },
         "pro": {
-            "in": {
-                "cost": 191988,
-                "currency": "INR",
-                "tokens_per_month": 150000
-            },
-            "default": {
-                "cost": 2400,
-                "currency": "USD",
-                "tokens_per_month": 150000
-            }
-        }
+            "in": {"cost": 191988, "currency": "INR", "tokens_per_month": 150000},
+            "default": {"cost": 2400, "currency": "USD", "tokens_per_month": 150000},
+        },
     },
     "monthly": {
         "free": {
-            "default": {
-                "cost": 0,
-                "currency": "USD",
-                "tokens_per_month": 0
-            },
-            "in": {
-                "cost": 0,
-                "currency": "INR",
-                "tokens_per_month": 0
-            }
+            "default": {"cost": 0, "currency": "USD", "tokens_per_month": 0},
+            "in": {"cost": 0, "currency": "INR", "tokens_per_month": 0},
         },
         "plus": {
-            "in": {
-                "cost": 4999,
-                "currency": "INR",
-                "tokens_per_month": 25000
-            },
-            "default": {
-                "cost": 60,
-                "currency": "USD",
-                "tokens_per_month": 25000
-            }
+            "in": {"cost": 4999, "currency": "INR", "tokens_per_month": 25000},
+            "default": {"cost": 60, "currency": "USD", "tokens_per_month": 25000},
         },
         "pro": {
-            "in": {
-                "cost": 19999,
-                "currency": "INR",
-                "tokens_per_month": 150000
-            },
-            "default": {
-                "cost": 240,
-                "currency": "USD",
-                "tokens_per_month": 150000
-            }
-        }
-    }
+            "in": {"cost": 19999, "currency": "INR", "tokens_per_month": 150000},
+            "default": {"cost": 240, "currency": "USD", "tokens_per_month": 150000},
+        },
+    },
 }
 
-COUNTRY_TO_CURRENCY = {
-    "in": "INR",
-    "default": "USD"
-}
+COUNTRY_TO_CURRENCY = {"in": "INR", "default": "USD"}
 
 
 # Default total count for subscriptions (0 for unlimited)
@@ -650,27 +625,22 @@ TOKENS_PER_USD = int(os.getenv("TOKENS_PER_USD", "1250"))
 
 TOKEN_PRICE_INFO = {
     "INR": float(os.getenv("TOKEN_PRICE_INFO_INR")),
-    "USD": float(os.getenv("TOKEN_PRICE_INFO_USD"))
+    "USD": float(os.getenv("TOKEN_PRICE_INFO_USD")),
 }
 
 # Default currency for top-up
 DEFAULT_TOPUP_CURRENCY = os.getenv("DEFAULT_TOPUP_CURRENCY", "USD")
 
 
-CASPR_PAYMENT_BASE_URL = os.getenv("CASPR_PAYMENT_BASE_URL",'https://72b54a898014.ngrok-free.app/api/v1')
-CASPR_PAYMENT_API_KEY = os.getenv("CASPR_PAYMENT_API_KEY",'456')
+CASPR_PAYMENT_BASE_URL = os.getenv(
+    "CASPR_PAYMENT_BASE_URL", "https://72b54a898014.ngrok-free.app/api/v1"
+)
+CASPR_PAYMENT_API_KEY = os.getenv("CASPR_PAYMENT_API_KEY", "456")
 
-X_API_KEY = os.getenv("X_API_KEY",'789')
+X_API_KEY = os.getenv("X_API_KEY", "789")
 
 
-TAX_INFO = {
-    "in": [
-        {
-            "tax": "GST",
-            "tax_percentage": 18
-        }
-    ]
-}
+TAX_INFO = {"in": [{"tax": "GST", "tax_percentage": 18}]}
 
 
 # Live Sources Count
@@ -709,18 +679,35 @@ MAX_UPLOAD_FILE_SIZE_BYTES = 25 * 1024 * 1024
 
 # Allowed file extensions for upload
 ALLOWED_UPLOAD_EXTENSIONS = {
-    ".md", ".pdf", ".docx", ".doc", ".txt", ".json",
-    ".csv", ".xml", ".html", ".htm", ".xls", ".xlsx",
+    ".md",
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".txt",
+    ".json",
+    ".csv",
+    ".xml",
+    ".html",
+    ".htm",
+    ".xls",
+    ".xlsx",
 }
 
 
 MCP_URL = os.getenv("MCP_URL")
 
 # Valid domain slugs accepted by the domain-reports endpoint
-_VALID_DOMAIN_SLUGS = frozenset([
-    "default", "primary_research", "due_diligence",
-    "industry_benchmarking", "market_insight", "rfp", "business_plan",
-])
+_VALID_DOMAIN_SLUGS = frozenset(
+    [
+        "default",
+        "primary_research",
+        "due_diligence",
+        "industry_benchmarking",
+        "market_insight",
+        "rfp",
+        "business_plan",
+    ]
+)
 
 
 # =============================================================================
@@ -739,10 +726,10 @@ CARD_SUMMARY_MODEL = os.getenv("CARD_SUMMARY_MODEL", "gpt-4o")
 CHAT_TITLE_MODEL = os.getenv("CHAT_TITLE_MODEL", "gpt-4o")
 GENERATE_TITLE_FOR_TABLE_MODEL = os.getenv("GENERATE_TITLE_FOR_TABLE_MODEL", "gpt-4o")
 PLOT_TYPE_MODEL = os.getenv("PLOT_TYPE_MODEL", "gpt-4o")
-REFINE_REPORT_LAYOUT_MODEL=os.getenv("REFINE_REPORT_LAYOUT_MODEL", "gpt-4o")
-TABLE_DICISION_MODEL=os.getenv("TABLE_DICISION_MODEL", "gpt-4o")
-CARD_FIX_MODEL=os.getenv("CARD_FIX_MODEL", "gpt-5.4")
-OPENAI_VALIDATION_MODEL=os.getenv("OPENAI_VALIDATION_MODEL", "gpt-4o")
+REFINE_REPORT_LAYOUT_MODEL = os.getenv("REFINE_REPORT_LAYOUT_MODEL", "gpt-4o")
+TABLE_DICISION_MODEL = os.getenv("TABLE_DICISION_MODEL", "gpt-4o")
+CARD_FIX_MODEL = os.getenv("CARD_FIX_MODEL", "gpt-5.4")
+OPENAI_VALIDATION_MODEL = os.getenv("OPENAI_VALIDATION_MODEL", "gpt-4o")
 
 # Additional model configuration
 REFINER_MODEL = os.getenv("REFINER_MODEL", "gpt-5.4")
@@ -765,7 +752,9 @@ POSTER_CLASSIFIER_MODEL = os.getenv("POSTER_CLASSIFIER_MODEL", "gpt-4o")
 VIZ_PLOT_CODE_MODEL = os.getenv("VIZ_PLOT_CODE_MODEL", "gpt-5.1")
 INFOGRAPHIC_CONTENT_MODEL = os.getenv("INFOGRAPHIC_CONTENT_MODEL", "gpt-5.2")
 INFOGRAPHIC_DALLE2_MODEL = os.getenv("INFOGRAPHIC_DALLE2_MODEL", "dall-e-2")
-INFOGRAPHIC_GEMINI_IMAGE_MODEL = os.getenv("INFOGRAPHIC_GEMINI_IMAGE_MODEL", "nano-banana-pro-preview")
+INFOGRAPHIC_GEMINI_IMAGE_MODEL = os.getenv(
+    "INFOGRAPHIC_GEMINI_IMAGE_MODEL", "nano-banana-pro-preview"
+)
 REPORT_ILLUSTRATION_MODEL = os.getenv("REPORT_ILLUSTRATION_MODEL", "dall-e-3")
 TOKEN_CHECKER_MODEL = os.getenv("TOKEN_CHECKER_MODEL", "gpt-4o-mini")
 ASK_CASPR_MODEL_MAIN = os.getenv("ASK_CASPR_MODEL_MAIN")
@@ -778,16 +767,26 @@ GEMINI_SUMMARY_MODEL = os.getenv("GEMINI_SUMMARY_MODEL", "gemini-3.6-flash")
 # Gemini fallback models — mirror the OpenAI models above so every OpenAI call
 # site has a same-purpose Gemini backup.
 # =============================================================================
-GEMINI_COMPRESS_CONTEXT_SUMMARY_MODEL = os.getenv("GEMINI_COMPRESS_CONTEXT_SUMMARY_MODEL", "gemini-3.6-flash")
+GEMINI_COMPRESS_CONTEXT_SUMMARY_MODEL = os.getenv(
+    "GEMINI_COMPRESS_CONTEXT_SUMMARY_MODEL", "gemini-3.6-flash"
+)
 GEMINI_BRIEF_STREAM_MODEL = os.getenv("GEMINI_BRIEF_STREAM_MODEL", "gemini-3.1-pro-preview")
-GEMINI_GENERATE_TITLE_FOR_TABLE_MODEL = os.getenv("GEMINI_GENERATE_TITLE_FOR_TABLE_MODEL", "gemini-3.6-flash")
+GEMINI_GENERATE_TITLE_FOR_TABLE_MODEL = os.getenv(
+    "GEMINI_GENERATE_TITLE_FOR_TABLE_MODEL", "gemini-3.6-flash"
+)
 GEMINI_QUERY_DOC_MODEL = os.getenv("GEMINI_QUERY_DOC_MODEL", "gemini-3.1-pro-preview")
-GEMINI_RETRIEVE_LATEST_INFO_MODEL = os.getenv("GEMINI_RETRIEVE_LATEST_INFO_MODEL", "gemini-3.1-pro-preview")
+GEMINI_RETRIEVE_LATEST_INFO_MODEL = os.getenv(
+    "GEMINI_RETRIEVE_LATEST_INFO_MODEL", "gemini-3.1-pro-preview"
+)
 GEMINI_CHAT_TITLE_MODEL = os.getenv("GEMINI_CHAT_TITLE_MODEL", "gemini-3.6-flash")
-GEMINI_REPORT_TEXTUAL_ANALYSIS_MODEL = os.getenv("GEMINI_REPORT_TEXTUAL_ANALYSIS_MODEL", "gemini-3.1-pro-preview")
+GEMINI_REPORT_TEXTUAL_ANALYSIS_MODEL = os.getenv(
+    "GEMINI_REPORT_TEXTUAL_ANALYSIS_MODEL", "gemini-3.1-pro-preview"
+)
 GEMINI_POSTER_CLASSIFIER_MODEL = os.getenv("GEMINI_POSTER_CLASSIFIER_MODEL", "gemini-3.6-flash")
 GEMINI_TITLE_SANITIZER_MODEL = os.getenv("GEMINI_TITLE_SANITIZER_MODEL", "gemini-3.6-flash")
-GEMINI_INFOGRAPHIC_CONTENT_MODEL = os.getenv("GEMINI_INFOGRAPHIC_CONTENT_MODEL", "gemini-3.1-pro-preview")
+GEMINI_INFOGRAPHIC_CONTENT_MODEL = os.getenv(
+    "GEMINI_INFOGRAPHIC_CONTENT_MODEL", "gemini-3.1-pro-preview"
+)
 GEMINI_PUBLISH_CSS_MODEL = os.getenv("GEMINI_PUBLISH_CSS_MODEL", "gemini-3.6-flash")
 GEMINI_VALIDATION_MODEL = os.getenv("GEMINI_VALIDATION_MODEL", "gemini-3.6-flash")
 GEMINI_VIZ_PLOT_CODE_MODEL = os.getenv("GEMINI_VIZ_PLOT_CODE_MODEL", "gemini-3.1-pro-preview")

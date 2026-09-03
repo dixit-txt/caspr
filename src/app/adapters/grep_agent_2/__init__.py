@@ -15,10 +15,11 @@ not the real in-memory doc-index object — nothing in this service reads
 its internal fields beyond `.labels`, verified against every copied call
 site).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,20 +34,21 @@ logger = setup_logging(__name__)
 class _WorkerLabelStub:
     """Stand-in for grep_agent_2.WorkerSession — only `.labels` is read by
     copied call sites (model.py's system-prompt file-naming logic)."""
-    labels: List[str]
+
+    labels: list[str]
 
 
 @dataclass
 class PdfSession:
-    uploaded_file_ids: List[str]
-    labels: List[str] = field(default_factory=list)
-    worker_sessions: List[_WorkerLabelStub] = field(default_factory=list)
+    uploaded_file_ids: list[str]
+    labels: list[str] = field(default_factory=list)
+    worker_sessions: list[_WorkerLabelStub] = field(default_factory=list)
 
 
 async def get_or_create_grep_session(
-    uploaded_file_ids: List[str],
+    uploaded_file_ids: list[str],
     db_session: AsyncSession,
-) -> Optional["PdfSession"]:
+) -> PdfSession | None:
     """Resolve filenames for the given ids so callers can log/display them,
     then hand back a lightweight handle. The real parsing/indexing lookup
     happens inside grep-service when `ask_pdfs()` is actually called — this
@@ -55,8 +57,9 @@ async def get_or_create_grep_session(
     if not uploaded_file_ids:
         return None
 
-    from src.db.database import UploadedFile
     from sqlalchemy import select
+
+    from app.models import UploadedFile
 
     result = await db_session.execute(
         select(UploadedFile.id, UploadedFile.original_filename).where(
@@ -77,12 +80,12 @@ async def get_or_create_grep_session(
 
 
 def ask_pdfs(
-    session: "PdfSession",
+    session: PdfSession,
     question: str,
     max_iterations_per_worker: int = 4,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    chat_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, Any]:
     """Synchronous by design — matches the original grep_agent_2.ask_pdfs
     signature exactly so every call site (card_utils.py, model.py,
     ask_caspr.py) needs zero changes. Blocks the calling thread on an HTTP

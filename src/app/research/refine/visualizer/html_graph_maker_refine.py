@@ -1,26 +1,24 @@
 import json
-import os
 import re
 
-import boto3
-from botocore.config import Config
 from google import genai
+
 # from langchain_aws import ChatBedrock  # Bedrock disabled — using direct Anthropic API instead
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from app.core.constants import (
+    ANTHROPIC_API_KEY,
     # BEDROCK_ACCESS_KEY_ID,
     # BEDROCK_SECRET_ACCESS_KEY,
     # BEDROCK_REGION_NAME,
     ANTHROPIC_MODEL_ID,
-    ANTHROPIC_API_KEY,
-    SYNC_OPENAI_CLIENT,
     GEMINI_API_KEY,
     GEMINI_HTML_MODEL,
-    OPENAI_VALIDATION_MODEL,
     GEMINI_VALIDATION_MODEL,
+    OPENAI_VALIDATION_MODEL,
+    SYNC_OPENAI_CLIENT,
 )
 from app.core.logging import setup_logging
 from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
@@ -45,10 +43,7 @@ GEMINI_CLIENT = genai.Client(api_key=GEMINI_API_KEY)
 # )
 
 ANTHROPIC_VIZ_LLM = ChatAnthropic(
-    model=ANTHROPIC_MODEL_ID,
-    timeout=None,
-    max_retries=5,
-    api_key=ANTHROPIC_API_KEY
+    model=ANTHROPIC_MODEL_ID, timeout=None, max_retries=5, api_key=ANTHROPIC_API_KEY
 )
 
 
@@ -322,9 +317,13 @@ def _invoke_anthropic_viz_graph_refine(
         _cached_refine_system_message(HTML_GRAPH_REFINE_SYSTEM_PROMPT),
         HumanMessage(content=user_prompt),
     ]
-    structured_llm = ANTHROPIC_VIZ_LLM.with_structured_output(HTMLVisualizationRefine, include_raw=True)
+    structured_llm = ANTHROPIC_VIZ_LLM.with_structured_output(
+        HTMLVisualizationRefine, include_raw=True
+    )
     raw_result = structured_llm.invoke(messages)
-    save_raw_llm_response(raw_result["raw"], ANTHROPIC_MODEL_ID, log_context, chat_id, user_id=user_id)
+    save_raw_llm_response(
+        raw_result["raw"], ANTHROPIC_MODEL_ID, log_context, chat_id, user_id=user_id
+    )
     if raw_result["parsing_error"] is not None:
         raise raw_result["parsing_error"]
     result: HTMLVisualizationRefine = raw_result["parsed"]
@@ -333,11 +332,21 @@ def _invoke_anthropic_viz_graph_refine(
     return result
 
 
-def _validate_refine_html_for_pdf(html_code: str, table_data: str, user_prompt: str = None, chat_id: str | None = None, user_id: str | None = None) -> HTMLRefineValidationResult:
+def _validate_refine_html_for_pdf(
+    html_code: str,
+    table_data: str,
+    user_prompt: str = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+) -> HTMLRefineValidationResult:
     """Validate generated HTML for PDF rendering issues."""
     js_patterns = [
-        r'<script[\s>]', r'</script>', r'\bon\w+\s*=',
-        r'javascript:', r'document\.', r'window\.',
+        r"<script[\s>]",
+        r"</script>",
+        r"\bon\w+\s*=",
+        r"javascript:",
+        r"document\.",
+        r"window\.",
     ]
     js_found = [p for p in js_patterns if re.search(p, html_code, re.IGNORECASE)]
     if js_found:
@@ -348,12 +357,14 @@ def _validate_refine_html_for_pdf(html_code: str, table_data: str, user_prompt: 
             fix_instructions="Remove ALL JavaScript. Use pure HTML+CSS only.",
         )
 
-    oversized_widths = re.findall(r'width:\s*(\d+)px', html_code)
+    oversized_widths = re.findall(r"width:\s*(\d+)px", html_code)
     oversized = [w for w in oversized_widths if int(w) > 750]
     if oversized:
         return HTMLRefineValidationResult(
             is_valid=False,
-            issues=[f"Elements have widths exceeding PDF margins: {oversized}px. Max allowed is 700px."],
+            issues=[
+                f"Elements have widths exceeding PDF margins: {oversized}px. Max allowed is 700px."
+            ],
             severity="critical",
             fix_instructions="Reduce all element widths to max 700px. Use max-width: 700px on the outermost container with overflow: hidden and ensure all children fit within.",
         )
@@ -381,7 +392,13 @@ Check if the HTML will render properly in PDF, looks professional, and correctly
                 {"role": "user", "content": validation_prompt},
             ],
         )
-        save_raw_llm_response(response, OPENAI_VALIDATION_MODEL, "Checking a refined chart visualization", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            response,
+            OPENAI_VALIDATION_MODEL,
+            "Checking a refined chart visualization",
+            chat_id,
+            user_id=user_id,
+        )
         result = json.loads(response.choices[0].message.content)
         return HTMLRefineValidationResult(
             is_valid=result.get("is_valid", False),
@@ -390,7 +407,9 @@ Check if the HTML will render properly in PDF, looks professional, and correctly
             fix_instructions=result.get("fix_instructions", ""),
         )
     except Exception as e:
-        logger.warning(f"HTML validation with OpenAI failed with error: {e}, falling back to Gemini")
+        logger.warning(
+            f"HTML validation with OpenAI failed with error: {e}, falling back to Gemini"
+        )
         try:
             interaction = GEMINI_CLIENT.interactions.create(
                 model=GEMINI_VALIDATION_MODEL,
@@ -406,7 +425,13 @@ Check if the HTML will render properly in PDF, looks professional, and correctly
                     "thinking_config": {"thinking_budget": 0},
                 },
             )
-            save_raw_llm_response(interaction, GEMINI_VALIDATION_MODEL, "Checking a refined chart visualization (backup)", chat_id, user_id=user_id)
+            save_raw_llm_response(
+                interaction,
+                GEMINI_VALIDATION_MODEL,
+                "Checking a refined chart visualization (backup)",
+                chat_id,
+                user_id=user_id,
+            )
             result = json.loads(strip_json_code_fence(interaction.output_text))
             return HTMLRefineValidationResult(
                 is_valid=result.get("is_valid", False),
@@ -415,8 +440,12 @@ Check if the HTML will render properly in PDF, looks professional, and correctly
                 fix_instructions=result.get("fix_instructions", ""),
             )
         except Exception as gemini_e:
-            logger.warning(f"HTML validation with Gemini also failed with error: {gemini_e}, skipping validation")
-            return HTMLRefineValidationResult(is_valid=True, issues=[], severity="pass", fix_instructions="")
+            logger.warning(
+                f"HTML validation with Gemini also failed with error: {gemini_e}, skipping validation"
+            )
+            return HTMLRefineValidationResult(
+                is_valid=True, issues=[], severity="pass", fix_instructions=""
+            )
 
 
 def _invoke_refine_with_fallback(
@@ -443,7 +472,13 @@ def _invoke_refine_with_fallback(
         return None
 
 
-def generate_html_visualization_refine(table_data: str, user_refine_prompt: str = None, existing_viz: str = None, chat_id: str | None = None, user_id: str | None = None) -> HTMLVisualizationRefine | None:
+def generate_html_visualization_refine(
+    table_data: str,
+    user_refine_prompt: str = None,
+    existing_viz: str = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+) -> HTMLVisualizationRefine | None:
     """
     Generate a refined HTML chart visualization from table data using user instructions.
 
@@ -479,8 +514,16 @@ Analyze the above data and refine the existing visualization (or generate a new 
         return None
 
     for attempt in range(MAX_VALIDATION_RETRIES):
-        logger.info(f"[GraphRefine] Validating HTML (attempt {attempt + 1}/{MAX_VALIDATION_RETRIES})")
-        validation = _validate_refine_html_for_pdf(visualization.html_code, table_data, user_prompt=user_refine_prompt, chat_id=chat_id, user_id=user_id)
+        logger.info(
+            f"[GraphRefine] Validating HTML (attempt {attempt + 1}/{MAX_VALIDATION_RETRIES})"
+        )
+        validation = _validate_refine_html_for_pdf(
+            visualization.html_code,
+            table_data,
+            user_prompt=user_refine_prompt,
+            chat_id=chat_id,
+            user_id=user_id,
+        )
 
         if validation.is_valid or validation.severity == "pass":
             logger.info("[GraphRefine] HTML validation passed")
@@ -488,9 +531,15 @@ Analyze the above data and refine the existing visualization (or generate a new 
             visualization.html_code = _ensure_page_break_avoid(visualization.html_code)
             return visualization
 
-        logger.warning(f"[GraphRefine] Validation failed ({validation.severity}): {validation.issues}")
+        logger.warning(
+            f"[GraphRefine] Validation failed ({validation.severity}): {validation.issues}"
+        )
 
-        user_instruction_context = f"\n\nUSER REFINEMENT INSTRUCTION (must be followed): {user_refine_prompt}" if user_refine_prompt else ""
+        user_instruction_context = (
+            f"\n\nUSER REFINEMENT INSTRUCTION (must be followed): {user_refine_prompt}"
+            if user_refine_prompt
+            else ""
+        )
         fix_user_prompt = f"""INPUT DATA:
 {table_data}
 
@@ -503,7 +552,9 @@ Analyze the above data and refine the existing visualization (or generate a new 
 Generate a corrected HTML visualization that addresses all the issues above. Ensure it renders cleanly in PDF."""
 
         try:
-            regen_result = _invoke_refine_with_fallback(fix_user_prompt, chat_id=chat_id, user_id=user_id)
+            regen_result = _invoke_refine_with_fallback(
+                fix_user_prompt, chat_id=chat_id, user_id=user_id
+            )
             if regen_result is None:
                 logger.error(f"[GraphRefine] Regeneration attempt {attempt + 1} failed")
                 break
@@ -521,11 +572,7 @@ def _ensure_page_break_avoid(html_code: str) -> str:
     """Wrap HTML in a page-break-avoiding container if not already wrapped."""
     if "page-break-inside" in html_code and "break-inside" in html_code:
         return html_code
-    return (
-        '<div style="page-break-inside: avoid; break-inside: avoid;">'
-        f"{html_code}"
-        "</div>"
-    )
+    return f'<div style="page-break-inside: avoid; break-inside: avoid;">{html_code}</div>'
 
 
 # A4 page (297mm) minus 25mm top + 20mm bottom margins ≈ 252mm ≈ 952px of content
@@ -544,9 +591,9 @@ def _enforce_pdf_size_constraints(html_code: str) -> str:
     vertically here — see _enforce_pdf_height_constraint.
     """
     if not (
-        'max-width: 700px' in html_code
-        or 'max-width:700px' in html_code
-        or 'max-width: 620px' in html_code
+        "max-width: 700px" in html_code
+        or "max-width:700px" in html_code
+        or "max-width: 620px" in html_code
     ):
         html_code = (
             '<div style="max-width: 620px; width: 100%; box-sizing: border-box; '
@@ -574,38 +621,26 @@ def _enforce_pdf_height_constraint(html_code: str) -> str:
 
 def _sanitize_refine_html(html_code: str) -> str:
     """Strip HTML comments, collapse empty lines, fix overflow issues, and strip citations/links."""
-    html_code = re.sub(r'<!--.*?-->', '', html_code, flags=re.DOTALL)
-    html_code = re.sub(r'\n\s*\n', '\n', html_code)
+    html_code = re.sub(r"<!--.*?-->", "", html_code, flags=re.DOTALL)
+    html_code = re.sub(r"\n\s*\n", "\n", html_code)
 
-    html_code = re.sub(
-        r'white-space:\s*nowrap',
-        'white-space: normal',
-        html_code
-    )
+    html_code = re.sub(r"white-space:\s*nowrap", "white-space: normal", html_code)
 
-    if 'max-width' in html_code and 'overflow-wrap' not in html_code:
+    if "max-width" in html_code and "overflow-wrap" not in html_code:
         html_code = re.sub(
             r'(max-width:\s*700px[^;"]*;)',
-            r'\1 box-sizing: border-box; overflow-x: hidden; overflow-wrap: break-word; word-wrap: break-word;',
+            r"\1 box-sizing: border-box; overflow-x: hidden; overflow-wrap: break-word; word-wrap: break-word;",
             html_code,
-            count=1
+            count=1,
         )
 
-    html_code = re.sub(
-        r'(width:\s*\d{4,}px)',
-        'width: 700px',
-        html_code
-    )
-    html_code = re.sub(
-        r'min-width:\s*\d{4,}px',
-        'min-width: 0',
-        html_code
-    )
+    html_code = re.sub(r"(width:\s*\d{4,}px)", "width: 700px", html_code)
+    html_code = re.sub(r"min-width:\s*\d{4,}px", "min-width: 0", html_code)
 
-    html_code = re.sub(r'<a\s[^>]*>(.*?)</a>', r'\1', html_code, flags=re.DOTALL | re.IGNORECASE)
-    html_code = re.sub(r'\[\d+\]', '', html_code)
-    html_code = re.sub(r'<sup>\s*\d+\s*</sup>', '', html_code, flags=re.IGNORECASE)
-    html_code = re.sub(r'<sup>\s*\[\d+\]\s*</sup>', '', html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"<a\s[^>]*>(.*?)</a>", r"\1", html_code, flags=re.DOTALL | re.IGNORECASE)
+    html_code = re.sub(r"\[\d+\]", "", html_code)
+    html_code = re.sub(r"<sup>\s*\d+\s*</sup>", "", html_code, flags=re.IGNORECASE)
+    html_code = re.sub(r"<sup>\s*\[\d+\]\s*</sup>", "", html_code, flags=re.IGNORECASE)
 
     html_code = _enforce_pdf_size_constraints(html_code)
 

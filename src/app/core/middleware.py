@@ -13,7 +13,7 @@ inside BaseHTTPMiddleware do not reliably propagate to the handler.
 
 import json
 
-from fastapi import Request
+from fastapi import Request, Response
 
 from app.core.logging import setup_logging
 from app.observability.error_alerter import (
@@ -51,6 +51,7 @@ async def error_alert_middleware(request: Request, call_next):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             from jose import jwt as _jwt
+
             token = auth_header.split(" ", 1)[1]
             claims = _jwt.get_unverified_claims(token)
             user_id = claims.get("sub") or claims.get("user_id")

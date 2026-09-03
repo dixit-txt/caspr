@@ -1,21 +1,20 @@
-
-from ast import Not
-import base64
-import datetime
 import json
-import logging
-import re
-from typing import List, Optional
-from langchain_core.prompts import ChatPromptTemplate
-import markdown
-import pandas as pd
-from pydantic import BaseModel, Field
-import requests
 import os
-import time
-from openai import OpenAI
+
 from google import genai
-from app.core.constants import ANTHROPIC_LLM, ANTHROPIC_MODEL_ID, TABLE_DICISION_MODEL, PLOT_TYPE_MODEL, GEMINI_API_KEY, GEMINI_TABLE_DECISION_MODEL, GEMINI_PLOT_TYPE_MODEL
+from langchain_core.prompts import ChatPromptTemplate
+from openai import OpenAI
+from pydantic import BaseModel, Field
+
+from app.core.constants import (
+    ANTHROPIC_LLM,
+    ANTHROPIC_MODEL_ID,
+    GEMINI_API_KEY,
+    GEMINI_PLOT_TYPE_MODEL,
+    GEMINI_TABLE_DECISION_MODEL,
+    PLOT_TYPE_MODEL,
+    TABLE_DICISION_MODEL,
+)
 from app.core.logging import setup_logging
 from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
 
@@ -24,17 +23,24 @@ logger = setup_logging(__name__)
 
 class TableVisualizationDecision(BaseModel):
     """To decide if table needs to be visualized or not"""
+
     visualize_or_not: bool = Field(description="whether to visualize the table or not")
+
 
 class TableSpecificPrompt(BaseModel):
     """To create a specific prompt for a table"""
+
     prompt: str = Field(description="a specific prompt for the table for a perfect visualization")
 
 
-def decide_if_table_needs_visualization(table, chat_id: Optional[str] = None, user_id: Optional[str] = None):
+def decide_if_table_needs_visualization(
+    table, chat_id: str | None = None, user_id: str | None = None
+):
     try:
-        logger.info(f"Deciding whether to visualize table")
-        structured_llm_for_decision = ANTHROPIC_LLM.with_structured_output(TableVisualizationDecision, include_raw=True)
+        logger.info("Deciding whether to visualize table")
+        structured_llm_for_decision = ANTHROPIC_LLM.with_structured_output(
+            TableVisualizationDecision, include_raw=True
+        )
         decision_prompt = f"""Analyze this markdown table and determine if it is QUANTITATIVE (suitable for chart/graph visualization) or QUALITATIVE/TEXT-HEAVY (not suitable for visualization):
 
 {table}
@@ -53,15 +59,21 @@ Return FALSE if the table is QUALITATIVE or TEXT-HEAVY:
 RETURN ONLY True OR False.
 """
         decision = structured_llm_for_decision.invoke(decision_prompt)
-        save_raw_llm_response(decision["raw"], ANTHROPIC_MODEL_ID, "Deciding if a table needs a visual chart", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            decision["raw"],
+            ANTHROPIC_MODEL_ID,
+            "Deciding if a table needs a visual chart",
+            chat_id,
+            user_id=user_id,
+        )
         if decision["parsing_error"] is not None:
             raise decision["parsing_error"]
         visualize_or_not = decision["parsed"].visualize_or_not
         should_visualize = visualize_or_not
         return should_visualize
-    except Exception as e:
+    except Exception:
         try:
-            logger.info(f"Falling back to OpenAI structured output for table validation")
+            logger.info("Falling back to OpenAI structured output for table validation")
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
             table_validation_schema = {
@@ -74,12 +86,12 @@ RETURN ONLY True OR False.
                         "properties": {
                             "visualize_or_not": {
                                 "type": "boolean",
-                                "description": "True if the table is quantitative and can be visualized as a chart/graph, False if it is qualitative or text-heavy."
+                                "description": "True if the table is quantitative and can be visualized as a chart/graph, False if it is qualitative or text-heavy.",
                             }
                         },
-                        "required": ["visualize_or_not"]
-                    }
-                }
+                        "required": ["visualize_or_not"],
+                    },
+                },
             }
             table_validation_prompt = f"""Analyze this markdown table and determine if it is QUANTITATIVE (suitable for chart/graph visualization) or QUALITATIVE/TEXT-HEAVY (not suitable for visualization):
 
@@ -103,13 +115,19 @@ RETURN ONLY True OR False.
                 model=TABLE_DICISION_MODEL,
                 messages=[{"role": "user", "content": table_validation_prompt}],
                 tools=[table_validation_schema],
-                tool_choice={"type": "function", "function": {"name": "table_decision"}}
+                tool_choice={"type": "function", "function": {"name": "table_decision"}},
             )
-            save_raw_llm_response(response, TABLE_DICISION_MODEL, "Deciding if a table needs a visual chart (backup)", chat_id, user_id=user_id)
+            save_raw_llm_response(
+                response,
+                TABLE_DICISION_MODEL,
+                "Deciding if a table needs a visual chart (backup)",
+                chat_id,
+                user_id=user_id,
+            )
 
             tool_call = response.choices[0].message.tool_calls[0]
             structured_json = json.loads(tool_call.function.arguments)
-            visualize_or_not = structured_json.get('visualize_or_not')
+            visualize_or_not = structured_json.get("visualize_or_not")
 
             if visualize_or_not is None:
                 raise Exception("No visualize_or_not returned by model")
@@ -134,7 +152,13 @@ RETURN ONLY True OR False.
                         "thinking_config": {"thinking_budget": 0},
                     },
                 )
-                save_raw_llm_response(interaction, GEMINI_TABLE_DECISION_MODEL, "Deciding if a table needs a visual chart (Gemini backup)", chat_id, user_id=user_id)
+                save_raw_llm_response(
+                    interaction,
+                    GEMINI_TABLE_DECISION_MODEL,
+                    "Deciding if a table needs a visual chart (Gemini backup)",
+                    chat_id,
+                    user_id=user_id,
+                )
                 result = json.loads(strip_json_code_fence(interaction.output_text))
                 visualize_or_not = result.get("visualize_or_not")
                 if visualize_or_not is None:
@@ -145,10 +169,13 @@ RETURN ONLY True OR False.
                 logger.error(f"Error validating table with Gemini fallback: {gemini_e}")
                 return True
 
-def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optional[str] = None):
+
+def generate_dynamic_prompt(table, chat_id: str | None = None, user_id: str | None = None):
     try:
-        logger.info(f"Generating dynamic prompt for table")
-        structured_llm_for_prompt = ANTHROPIC_LLM.with_structured_output(TableSpecificPrompt, include_raw=True)
+        logger.info("Generating dynamic prompt for table")
+        structured_llm_for_prompt = ANTHROPIC_LLM.with_structured_output(
+            TableSpecificPrompt, include_raw=True
+        )
         prompt_prompt = f"""Analyze {table} and create visualization prompt to visualize the data in the best possible way:
         you must always pass the {{table}} and {{plot_type}} in the prompt(VERY IMPORTANT).
         also make sure to save the visualization as .png file always(VERY IMPORTANT).
@@ -162,13 +189,19 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
         ALWAYS RETURN THE PROMPT ONLY, NO OTHER TEXT OR COMMENTARY.
         """
         table_specific_prompt_result = structured_llm_for_prompt.invoke(prompt_prompt)
-        save_raw_llm_response(table_specific_prompt_result["raw"], ANTHROPIC_MODEL_ID, "Writing chart instructions tailored to the table", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            table_specific_prompt_result["raw"],
+            ANTHROPIC_MODEL_ID,
+            "Writing chart instructions tailored to the table",
+            chat_id,
+            user_id=user_id,
+        )
         if table_specific_prompt_result["parsing_error"] is not None:
             raise table_specific_prompt_result["parsing_error"]
         dynamic_prompt = table_specific_prompt_result["parsed"].prompt
         if dynamic_prompt:
             return dynamic_prompt
-    except Exception as e:
+    except Exception:
         try:
             logger.info("Falling back to OpenAI structured output for new Table Specific Prompt")
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -183,12 +216,12 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
                         "properties": {
                             "table_specific_prompt": {
                                 "type": "string",
-                                "description": "The new table specific prompt"
+                                "description": "The new table specific prompt",
                             }
                         },
-                        "required": ["table_specific_prompt"]
-                    }
-                }
+                        "required": ["table_specific_prompt"],
+                    },
+                },
             }
             table_specific_prompt_text = f"""Analyze {table} and create visualization prompt to visualize the data in the best possible way:
             you must always pass the {{table}} and {{plot_type}} in the prompt(VERY IMPORTANT).
@@ -206,13 +239,19 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
                 model=PLOT_TYPE_MODEL,
                 messages=[{"role": "user", "content": table_specific_prompt_text}],
                 tools=[table_specific_prompt_schema],
-                tool_choice={"type": "function", "function": {"name": "table_specific_prompt"}}
+                tool_choice={"type": "function", "function": {"name": "table_specific_prompt"}},
             )
-            save_raw_llm_response(response, PLOT_TYPE_MODEL, "Writing chart instructions tailored to the table (backup)", chat_id, user_id=user_id)
+            save_raw_llm_response(
+                response,
+                PLOT_TYPE_MODEL,
+                "Writing chart instructions tailored to the table (backup)",
+                chat_id,
+                user_id=user_id,
+            )
 
             tool_call = response.choices[0].message.tool_calls[0]
             structured_json = json.loads(tool_call.function.arguments)
-            dynamic_prompt = structured_json.get('table_specific_prompt')
+            dynamic_prompt = structured_json.get("table_specific_prompt")
             logger.info(f"Dynamic prompt:----> {dynamic_prompt}")
 
             if dynamic_prompt:
@@ -226,10 +265,10 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
                     "properties": {
                         "table_specific_prompt": {
                             "type": "string",
-                            "description": "The new table specific prompt"
+                            "description": "The new table specific prompt",
                         }
                     },
-                    "required": ["table_specific_prompt"]
+                    "required": ["table_specific_prompt"],
                 }
                 gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                 interaction = gemini_client.interactions.create(
@@ -245,9 +284,15 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
                         "thinking_config": {"thinking_budget": 0},
                     },
                 )
-                save_raw_llm_response(interaction, GEMINI_PLOT_TYPE_MODEL, "Writing chart instructions tailored to the table (Gemini backup)", chat_id, user_id=user_id)
+                save_raw_llm_response(
+                    interaction,
+                    GEMINI_PLOT_TYPE_MODEL,
+                    "Writing chart instructions tailored to the table (Gemini backup)",
+                    chat_id,
+                    user_id=user_id,
+                )
                 result = json.loads(strip_json_code_fence(interaction.output_text))
-                dynamic_prompt = result.get('table_specific_prompt')
+                dynamic_prompt = result.get("table_specific_prompt")
                 logger.info(f"Dynamic prompt (Gemini):----> {dynamic_prompt}")
                 if dynamic_prompt:
                     return dynamic_prompt
@@ -256,29 +301,39 @@ def generate_dynamic_prompt(table, chat_id: Optional[str] = None, user_id: Optio
                 logger.error(f"Error generating dynamic prompt with Gemini fallback: {gemini_e}")
                 return None
 
+
 class PlotType(BaseModel):
     """To choose the best plot type"""
+
     plot_type: str = Field(description="the best plot type for the table")
 
 
-def choosse_the_best_plot_type(table, chat_id: Optional[str] = None, user_id: Optional[str] = None):
+def choosse_the_best_plot_type(table, chat_id: str | None = None, user_id: str | None = None):
     try:
-        logger.info(f"Deciding whether to visualize table")
-        structured_llm_for_decision = ANTHROPIC_LLM.with_structured_output(PlotType, include_raw=True)
+        logger.info("Deciding whether to visualize table")
+        structured_llm_for_decision = ANTHROPIC_LLM.with_structured_output(
+            PlotType, include_raw=True
+        )
         choose_the_best_plot_type_prompt = f"""Choose the best plot type for the following table:
         {table}
         Only return the plot type, no other text or commentary.
         """
         decision = structured_llm_for_decision.invoke(choose_the_best_plot_type_prompt)
-        save_raw_llm_response(decision["raw"], ANTHROPIC_MODEL_ID, "Choosing the best chart type for the data", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            decision["raw"],
+            ANTHROPIC_MODEL_ID,
+            "Choosing the best chart type for the data",
+            chat_id,
+            user_id=user_id,
+        )
         if decision["parsing_error"] is not None:
             raise decision["parsing_error"]
         plot_type = decision["parsed"].plot_type
         should_visualize = plot_type
         return should_visualize
-    except Exception as e:
+    except Exception:
         try:
-            logger.info(f"Falling back to OpenAI structured output for choose the best plot type")
+            logger.info("Falling back to OpenAI structured output for choose the best plot type")
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
             choose_the_best_plot_type_prompt_schema = {
@@ -291,14 +346,16 @@ def choosse_the_best_plot_type(table, chat_id: Optional[str] = None, user_id: Op
                         "properties": {
                             "plot_type": {
                                 "type": "string",
-                                "description": "The best plot type for the table."
+                                "description": "The best plot type for the table.",
                             }
                         },
-                        "required": ["plot_type"]
-                    }
-                }
+                        "required": ["plot_type"],
+                    },
+                },
             }
-            choose_the_best_plot_type_prompt_template = ChatPromptTemplate.from_template(template=choose_the_best_plot_type_prompt)
+            choose_the_best_plot_type_prompt_template = ChatPromptTemplate.from_template(
+                template=choose_the_best_plot_type_prompt
+            )
             choose_the_best_plot_type_prompt = choose_the_best_plot_type_prompt_template.format(
                 table=table
             )
@@ -307,13 +364,19 @@ def choosse_the_best_plot_type(table, chat_id: Optional[str] = None, user_id: Op
                 model=PLOT_TYPE_MODEL,
                 messages=[{"role": "user", "content": choose_the_best_plot_type_prompt}],
                 tools=[choose_the_best_plot_type_prompt_schema],
-                tool_choice={"type": "function", "function": {"name": "plot_type_decision"}}
+                tool_choice={"type": "function", "function": {"name": "plot_type_decision"}},
             )
-            save_raw_llm_response(response, PLOT_TYPE_MODEL, "Choosing the best chart type for the data (backup)", chat_id, user_id=user_id)
+            save_raw_llm_response(
+                response,
+                PLOT_TYPE_MODEL,
+                "Choosing the best chart type for the data (backup)",
+                chat_id,
+                user_id=user_id,
+            )
 
             tool_call = response.choices[0].message.tool_calls[0]
             structured_json = json.loads(tool_call.function.arguments)
-            plot_type = structured_json.get('plot_type')
+            plot_type = structured_json.get("plot_type")
 
             if plot_type is None:
                 raise Exception("No visualize_or_not returned by model")
@@ -338,9 +401,15 @@ def choosse_the_best_plot_type(table, chat_id: Optional[str] = None, user_id: Op
                         "thinking_config": {"thinking_budget": 0},
                     },
                 )
-                save_raw_llm_response(interaction, GEMINI_PLOT_TYPE_MODEL, "Choosing the best chart type for the data (Gemini backup)", chat_id, user_id=user_id)
+                save_raw_llm_response(
+                    interaction,
+                    GEMINI_PLOT_TYPE_MODEL,
+                    "Choosing the best chart type for the data (Gemini backup)",
+                    chat_id,
+                    user_id=user_id,
+                )
                 result = json.loads(strip_json_code_fence(interaction.output_text))
-                plot_type = result.get('plot_type')
+                plot_type = result.get("plot_type")
                 if plot_type is None:
                     raise Exception("No plot_type returned by Gemini")
                 logger.info(f"Plot type result (Gemini):----> {plot_type}")

@@ -14,22 +14,13 @@ import os
 import tempfile
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, TypedDict
+from typing import Any, TypedDict
 
 from langchain_core.messages import AIMessage
 from langgraph.config import get_stream_writer
 
-from app.core.constants import S3_REPORTS_BASE_PATH
-from app.core.logging import setup_logging
-from src.core.cards.card_fixer import fix_card
-from app.observability.web_search_analytics import (
-    enrich_terminal_search_analytics,
-    logical_card_id,
-    log_scheduled_analytics_batch,
-    search_analytics_schedule_kwargs,
-)
-from src.db.web_search_db import log_web_search_event
-from src.core.cards.card_utils import (
+from app.admin.repository_web_search import log_web_search_event
+from app.cards.service_cards import (
     add_viz_to_card,
     clean_drl,
     clean_drl_to_clean_rl,
@@ -38,7 +29,6 @@ from src.core.cards.card_utils import (
     gather_context_from_uploaded_file,
     generate_brief_cards,
     generate_cards,
-    generate_cumulative_summary,
     generate_drl,
     generate_section_summary,
     modify_card,
@@ -49,6 +39,15 @@ from src.core.cards.card_utils import (
     replace_citations,
     update_summaries_for_ask_caspr,
 )
+from app.cards.service_fixer import fix_card
+from app.core.constants import S3_REPORTS_BASE_PATH
+from app.core.logging import setup_logging
+from app.observability.web_search_analytics import (
+    enrich_terminal_search_analytics,
+    log_scheduled_analytics_batch,
+    logical_card_id,
+    search_analytics_schedule_kwargs,
+)
 
 logger = setup_logging(__name__)
 
@@ -56,12 +55,14 @@ logger = setup_logging(__name__)
 # Shared state that every domain subgraph can extend
 # ---------------------------------------------------------------------------
 
+
 class BaseDomainState(TypedDict, total=False):
     """Fields that EVERY domain subgraph must carry.
 
     Domain-specific subgraphs should create their own TypedDict that includes
     these keys plus any extras (e.g. ``document_analysis`` for Primary Research).
     """
+
     upload_file_config: dict
     grep_session: Any
     user_instructions: str
@@ -82,13 +83,14 @@ class BaseDomainState(TypedDict, total=False):
     cumulative_summary: str
     all_report_citations: list
     table_and_table_id_map: dict
-    final_message: Optional[AIMessage]
-    error: Optional[str]
+    final_message: AIMessage | None
+    error: str | None
 
 
 # ---------------------------------------------------------------------------
 # Domain configuration -- one instance per domain
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class DomainConfig:
@@ -98,6 +100,7 @@ class DomainConfig:
     helpers.  The planner utilities read the flags / prompt overrides and
     adjust their behaviour accordingly.
     """
+
     domain_name: str
     display_name: str
 
@@ -117,12 +120,13 @@ class DomainConfig:
     citation_rules_block: str = ""
     drl_addendum: str = ""
 
-    extra_prompt_blocks: List[str] = field(default_factory=list)
+    extra_prompt_blocks: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # S3 metadata upload helpers (mirrors Casper._upload_* for domain subgraphs)
 # ---------------------------------------------------------------------------
+
 
 def _s3_metadata_prefix(user_name: str, chat_id: str) -> str:
     now = datetime.datetime.now()
@@ -134,11 +138,16 @@ def _s3_metadata_prefix(user_name: str, chat_id: str) -> str:
 
 
 async def _upload_report_layout_to_s3(
-    s3_instance, report_layout, filename: str,
-    user_name: str, chat_id: str,
+    s3_instance,
+    report_layout,
+    filename: str,
+    user_name: str,
+    chat_id: str,
 ) -> None:
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as tmp:
             if isinstance(report_layout, str):
                 tmp.write(report_layout)
             else:
@@ -152,7 +161,7 @@ async def _upload_report_layout_to_s3(
             if s3_path:
                 logger.info(f"[domain] Uploaded report layout to S3: {s3_path}")
             else:
-                logger.error(f"[domain] Failed to upload report layout to S3")
+                logger.error("[domain] Failed to upload report layout to S3")
         except Exception as e:
             logger.error(f"[domain] Error uploading report layout to S3: {e}")
         finally:
@@ -165,11 +174,16 @@ async def _upload_report_layout_to_s3(
 
 
 async def _upload_descriptive_layout_to_s3(
-    s3_instance, descriptive_layout: list | dict, filename: str,
-    user_name: str, chat_id: str,
+    s3_instance,
+    descriptive_layout: list | dict,
+    filename: str,
+    user_name: str,
+    chat_id: str,
 ) -> None:
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tmp:
             _json.dump(descriptive_layout, tmp, indent=2, ensure_ascii=False)
             temp_path = tmp.name
 
@@ -180,7 +194,7 @@ async def _upload_descriptive_layout_to_s3(
             if s3_path:
                 logger.info(f"[domain] Uploaded descriptive layout to S3: {s3_path}")
             else:
-                logger.error(f"[domain] Failed to upload descriptive layout to S3")
+                logger.error("[domain] Failed to upload descriptive layout to S3")
         except Exception as e:
             logger.error(f"[domain] Error uploading descriptive layout to S3: {e}")
         finally:
@@ -193,11 +207,16 @@ async def _upload_descriptive_layout_to_s3(
 
 
 async def _upload_card_to_s3(
-    s3_instance, card_with_citations: list | dict, card_name: str,
-    user_name: str, chat_id: str,
+    s3_instance,
+    card_with_citations: list | dict,
+    card_name: str,
+    user_name: str,
+    chat_id: str,
 ) -> None:
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tmp:
             _json.dump(card_with_citations, tmp, indent=2, ensure_ascii=False)
             temp_path = tmp.name
 
@@ -217,11 +236,16 @@ async def _upload_card_to_s3(
 
 
 async def _upload_fixed_card_to_s3(
-    s3_instance, card: dict, card_name: str,
-    user_name: str, chat_id: str,
+    s3_instance,
+    card: dict,
+    card_name: str,
+    user_name: str,
+    chat_id: str,
 ) -> None:
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as tmp:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tmp:
             _json.dump(card, tmp, indent=2, ensure_ascii=False)
             temp_path = tmp.name
 
@@ -241,8 +265,11 @@ async def _upload_fixed_card_to_s3(
 
 
 async def _upload_cards_for_db_to_s3(
-    s3_instance, cards_for_db: list, table_and_table_id_map: dict,
-    user_name: str, chat_id: str,
+    s3_instance,
+    cards_for_db: list,
+    table_and_table_id_map: dict,
+    user_name: str,
+    chat_id: str,
 ) -> None:
     file_path = None
     try:
@@ -255,9 +282,13 @@ async def _upload_cards_for_db_to_s3(
 
         s3_key = f"{_s3_metadata_prefix(user_name, chat_id)}/Cards/Report_Card_Json/{file_name}"
         await asyncio.to_thread(s3_instance.upload_file, file_path, s3_key)
-        logger.info(f"[domain] cards_for_db uploaded to S3: {s3_key} | user: {user_name} chat: {chat_id}")
+        logger.info(
+            f"[domain] cards_for_db uploaded to S3: {s3_key} | user: {user_name} chat: {chat_id}"
+        )
     except Exception as e:
-        logger.error(f"[domain] Error uploading cards_for_db to S3: {e} | user: {user_name} chat: {chat_id}")
+        logger.error(
+            f"[domain] Error uploading cards_for_db to S3: {e} | user: {user_name} chat: {chat_id}"
+        )
     finally:
         if file_path and os.path.exists(file_path):
             try:
@@ -269,6 +300,7 @@ async def _upload_cards_for_db_to_s3(
 # ---------------------------------------------------------------------------
 # Planner helpers -- used by every domain subgraph
 # ---------------------------------------------------------------------------
+
 
 async def plan_report_layout(
     report_layout: str,
@@ -301,8 +333,12 @@ async def plan_report_layout(
 
     _uid = user_id or user_name
     drl = await asyncio.to_thread(
-        generate_drl, report_layout, augmented_instructions, report_length,
-        chat_id=chat_id or None, user_id=_uid or None,
+        generate_drl,
+        report_layout,
+        augmented_instructions,
+        report_length,
+        chat_id=chat_id or None,
+        user_id=_uid or None,
     )
     if not drl:
         raise ValueError("Failed to generate descriptive report layout")
@@ -322,17 +358,25 @@ async def plan_report_layout(
     cleaned_rl = await asyncio.to_thread(modify_report_layout, cleaned_rl)
 
     if s3_instance:
-        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        asyncio.create_task(_upload_report_layout_to_s3(
-            s3_instance, cleaned_rl,
-            f"{domain_config.domain_name}_cleaned_report_layout_{ts}.txt",
-            user_name, chat_id,
-        ))
-        asyncio.create_task(_upload_descriptive_layout_to_s3(
-            s3_instance, drl,
-            f"{domain_config.domain_name}_descriptive_report_layout_{ts}.json",
-            user_name, chat_id,
-        ))
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        asyncio.create_task(
+            _upload_report_layout_to_s3(
+                s3_instance,
+                cleaned_rl,
+                f"{domain_config.domain_name}_cleaned_report_layout_{ts}.txt",
+                user_name,
+                chat_id,
+            )
+        )
+        asyncio.create_task(
+            _upload_descriptive_layout_to_s3(
+                s3_instance,
+                drl,
+                f"{domain_config.domain_name}_descriptive_report_layout_{ts}.json",
+                user_name,
+                chat_id,
+            )
+        )
 
     logger.info(
         f"[{domain_config.domain_name}] plan_report_layout completed | "
@@ -342,7 +386,7 @@ async def plan_report_layout(
     return drl, cleaned_rl
 
 
-def _drl_heartbeat_lines(section: dict) -> List[str]:
+def _drl_heartbeat_lines(section: dict) -> list[str]:
     """Return the DRL-authored ``heartbeat`` lines for a section being generated.
 
     Heartbeats now live only at the section level (the section's 5 lines are
@@ -350,7 +394,7 @@ def _drl_heartbeat_lines(section: dict) -> List[str]:
     we simply surface those. Sub-section ``heartbeat`` lines are still appended
     if present, for backward compatibility with older DRLs.
     """
-    lines: List[str] = [str(line) for line in section.get("heartbeat", []) if line]
+    lines: list[str] = [str(line) for line in section.get("heartbeat", []) if line]
     for sub in section.get("sub_sections", []) or []:
         lines.extend(str(line) for line in sub.get("heartbeat", []) if line)
     return lines
@@ -359,7 +403,7 @@ def _drl_heartbeat_lines(section: dict) -> List[str]:
 async def _run_card_heartbeat(
     section_name: str,
     event_writer,
-    heartbeat_lines: Optional[List[str]] = None,
+    heartbeat_lines: list[str] | None = None,
     interval: float = 5.0,
 ) -> None:
     """Emit the DRL-authored heartbeat lines for a section while its card is generated.
@@ -383,12 +427,14 @@ async def _run_card_heartbeat(
     # advancing on the timer. Once every line has been sent, keep the task alive
     # silently (no further emits) until the caller cancels it when the card is ready.
     for line in lines:
-        event_writer({
-            "name": "generate_report",
-            "status": "card_generation_heartbeat",
-            "section": section_name,
-            "step": line,
-        })
+        event_writer(
+            {
+                "name": "generate_report",
+                "status": "card_generation_heartbeat",
+                "section": section_name,
+                "step": line,
+            }
+        )
         await asyncio.sleep(interval)
     while True:
         await asyncio.sleep(interval)
@@ -397,7 +443,7 @@ async def _run_card_heartbeat(
 async def generate_section_cards(
     descriptive_report_layout: list,
     user_instructions: str,
-    upload_file_config: Optional[dict],
+    upload_file_config: dict | None,
     report_length: str,
     web_search: bool,
     user_name: str,
@@ -466,7 +512,7 @@ async def generate_section_cards(
     sections = descriptive_report_layout[1:]  # skip title section
     report_length_upper = report_length.upper().strip()
 
-    if report_type.lower() == 'brief':
+    if report_type.lower() == "brief":
         logger.info(
             f"[{domain_config.domain_name}] Brief report mode — using gather_context_from_uploaded_file + generate_brief_cards | "
             f"user: {user_name} chat: {chat_id}"
@@ -485,8 +531,10 @@ async def generate_section_cards(
         analytics_operation_id = str(uuid.uuid4())
 
         brief_gen = generate_brief_cards(
-            drl=sections, user_instructions=user_instructions,
-            chat_id=chat_id or None, user_id=_uid or None,
+            drl=sections,
+            user_instructions=user_instructions,
+            chat_id=chat_id or None,
+            user_id=_uid or None,
             analytics_collector=analytics_collector,
             analytics_operation_id=analytics_operation_id,
         )
@@ -523,27 +571,36 @@ async def generate_section_cards(
                 brief_section_name = raw_card.get("section", f"Section {idx}")
 
                 def _post_step(step: str):
-                    event_writer({
-                        "name": "generate_report",
-                        "status": "card_generation_heartbeat",
-                        "section": brief_section_name,
-                        "step": step,
-                    })
+                    event_writer(
+                        {
+                            "name": "generate_report",
+                            "status": "card_generation_heartbeat",
+                            "section": brief_section_name,
+                            "step": step,
+                        }
+                    )
 
                 _post_step("Linking sources…")
                 card = replace_brief_citations(raw_card, citation_url_map, all_report_citations)
 
                 _post_step("Summarizing section…")
                 card_summary = await asyncio.to_thread(
-                    generate_section_summary, card, chat_id=chat_id or None, user_id=_uid or None,
+                    generate_section_summary,
+                    card,
+                    chat_id=chat_id or None,
+                    user_id=_uid or None,
                 )
                 card["summary"] = card_summary
 
                 _post_step("Building charts…")
                 modified_card = await asyncio.to_thread(modify_card, card)
                 card, tmap = await asyncio.to_thread(
-                    add_viz_to_card, modified_card, user_name, chat_id,
-                    report_type=report_type, user_id=_uid or None,
+                    add_viz_to_card,
+                    modified_card,
+                    user_name,
+                    chat_id,
+                    report_type=report_type,
+                    user_id=_uid or None,
                 )
                 table_and_table_id_map.update(tmap)
                 card = await asyncio.to_thread(update_summaries_for_ask_caspr, card)
@@ -559,15 +616,17 @@ async def generate_section_cards(
                 event_writer({"name": "generate_report", "card_db": card, "card_type": "section"})
             except Exception as e:
                 logger.error(
-                    f"[{domain_config.domain_name}][brief] Error processing card {idx}: {str(e)} | "
+                    f"[{domain_config.domain_name}][brief] Error processing card {idx}: {e!s} | "
                     f"user: {user_name} chat: {chat_id}"
                 )
-                cards_for_db.append(_empty_card(raw_card.get('section', f'Section {idx}')))
-                event_writer({
-                    "name": "generate_report",
-                    "card_db": cards_for_db[-1],
-                    "card_type": "section",
-                })
+                cards_for_db.append(_empty_card(raw_card.get("section", f"Section {idx}")))
+                event_writer(
+                    {
+                        "name": "generate_report",
+                        "card_db": cards_for_db[-1],
+                        "card_type": "section",
+                    }
+                )
 
         event_writer({"name": "generate_report", "report_citations": citation_url_map})
         cumulative_summary = "\n".join(
@@ -668,19 +727,19 @@ async def generate_section_cards(
                     asyncio.create_task(log_web_search_event(**event))
                 except Exception:
                     logger.exception(
-                        "[generate_section_cards] Failed to schedule "
-                        "non-fatal search analytics"
+                        "[generate_section_cards] Failed to schedule non-fatal search analytics"
                     )
 
         try:
             logger.info(
-                f"[{domain_config.domain_name}] Processing section {idx+1}/{len(sections)}: "
+                f"[{domain_config.domain_name}] Processing section {idx + 1}/{len(sections)}: "
                 f"{section.get('section', '?')} | user: {user_name} chat: {chat_id}"
             )
 
             _hb_task = asyncio.create_task(
                 _run_card_heartbeat(
-                    section_name, event_writer,
+                    section_name,
+                    event_writer,
                     heartbeat_lines=_drl_heartbeat_lines(section),
                 )
             )
@@ -729,27 +788,39 @@ async def generate_section_cards(
 
             if s3_instance:
                 card_name = f"{card.get('section', f'section_{idx}')}"
-                asyncio.create_task(_upload_card_to_s3(
-                    s3_instance, [card, card_citations], card_name,
-                    user_name, chat_id,
-                ))
+                asyncio.create_task(
+                    _upload_card_to_s3(
+                        s3_instance,
+                        [card, card_citations],
+                        card_name,
+                        user_name,
+                        chat_id,
+                    )
+                )
 
             def _post_step(step: str):
-                event_writer({
-                    "name": "generate_report",
-                    "status": "card_generation_heartbeat",
-                    "section": section_name,
-                    "step": step,
-                })
+                event_writer(
+                    {
+                        "name": "generate_report",
+                        "status": "card_generation_heartbeat",
+                        "section": section_name,
+                        "step": step,
+                    }
+                )
 
             _post_step("Linking sources…")
             card = fix_card(card, chat_id=chat_id or None, user_id=_uid or None)
 
             if s3_instance:
-                asyncio.create_task(_upload_fixed_card_to_s3(
-                    s3_instance, card, card_name,
-                    user_name, chat_id,
-                ))
+                asyncio.create_task(
+                    _upload_fixed_card_to_s3(
+                        s3_instance,
+                        card,
+                        card_name,
+                        user_name,
+                        chat_id,
+                    )
+                )
 
             card_citations = _normalise_citations(card_citations, user_name, chat_id)
 
@@ -777,18 +848,27 @@ async def generate_section_cards(
 
             _post_step("Summarizing section…")
             card_summary = await asyncio.to_thread(
-                generate_section_summary, card, chat_id=chat_id or None, user_id=_uid or None,
+                generate_section_summary,
+                card,
+                chat_id=chat_id or None,
+                user_id=_uid or None,
             )
             card["citations"] = {
-                url: citation_url_map.get(url, 0) for url in processed_citations if url in citation_url_map
+                url: citation_url_map.get(url, 0)
+                for url in processed_citations
+                if url in citation_url_map
             }
             card["summary"] = card_summary
 
             _post_step("Building charts…")
             modified_card = await asyncio.to_thread(modify_card, card)
             card, tmap = await asyncio.to_thread(
-                add_viz_to_card, modified_card, user_name, chat_id,
-                report_type=report_type, user_id=_uid or None,
+                add_viz_to_card,
+                modified_card,
+                user_name,
+                chat_id,
+                report_type=report_type,
+                user_id=_uid or None,
             )
             table_and_table_id_map.update(tmap)
             card = await asyncio.to_thread(update_summaries_for_ask_caspr, card)
@@ -815,15 +895,17 @@ async def generate_section_cards(
         except Exception as exc:
             _schedule_collected_analytics()
             logger.error(
-                f"[{domain_config.domain_name}] Error on section {idx+1}: {exc} | "
+                f"[{domain_config.domain_name}] Error on section {idx + 1}: {exc} | "
                 f"user: {user_name} chat: {chat_id}"
             )
             cards_for_db.append(_empty_card(section.get("section", "Unknown")))
-            event_writer({
-                "name": "generate_report",
-                "card_db": cards_for_db[-1],
-                "card_type": "section",
-            })
+            event_writer(
+                {
+                    "name": "generate_report",
+                    "card_db": cards_for_db[-1],
+                    "card_type": "section",
+                }
+            )
 
     event_writer({"name": "generate_report", "report_citations": citation_url_map})
     # Build cumulative_summary from individual card summaries for executive summary generation
@@ -875,8 +957,10 @@ async def synthesize_report(
             # Old approach: refine_cumulative_summary(cumulative_summary)
             # New approach: pass cards_for_db, function extracts summaries internally
             executive_summary = await asyncio.to_thread(
-                refine_cumulative_summary, cards_for_db,
-                chat_id=chat_id or None, user_id=_uid or None,
+                refine_cumulative_summary,
+                cards_for_db,
+                chat_id=chat_id or None,
+                user_id=_uid or None,
             )
         except Exception as exc:
             logger.error(f"[{domain_config.domain_name}] Executive summary failed: {exc}")
@@ -884,11 +968,15 @@ async def synthesize_report(
     if executive_summary:
         es_card = _make_meta_card_dict("executive_summary", executive_summary)
         cards_for_db.insert(3, es_card)
-        event_writer({
-            "name": "generate_report",
-            "card_db": {"section": [{"name": "executive_summary", "content": executive_summary}]},
-            "card_type": "es",
-        })
+        event_writer(
+            {
+                "name": "generate_report",
+                "card_db": {
+                    "section": [{"name": "executive_summary", "content": executive_summary}]
+                },
+                "card_type": "es",
+            }
+        )
 
     event_writer({"name": "generate_report", "table_and_table_id_map": table_and_table_id_map})
     event_writer({"name": "generate_report", "status": "card_stream_complete"})
@@ -897,10 +985,15 @@ async def synthesize_report(
     event_writer({"name": "generate_report", "status": "md_content", "md_content": md_content})
 
     if s3_instance:
-        asyncio.create_task(_upload_cards_for_db_to_s3(
-            s3_instance, cards_for_db, table_and_table_id_map,
-            user_name, chat_id,
-        ))
+        asyncio.create_task(
+            _upload_cards_for_db_to_s3(
+                s3_instance,
+                cards_for_db,
+                table_and_table_id_map,
+                user_name,
+                chat_id,
+            )
+        )
 
     logger.info(
         f"[{domain_config.domain_name}] synthesize_report completed | "
@@ -916,31 +1009,53 @@ async def synthesize_report(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _append_meta_card(cards: list, name: str, content: str, event_writer) -> None:
     card = _make_meta_card_dict(name, content)
     cards.append(card)
-    event_writer({
-        "name": "generate_report",
-        "card_db": card,
-        "card_type": name if name != "table_of_contents" else "toc",
-    })
+    event_writer(
+        {
+            "name": "generate_report",
+            "card_db": card,
+            "card_type": name if name != "table_of_contents" else "toc",
+        }
+    )
+
 
 def _make_meta_card_dict(name: str, content: str) -> dict:
     return {
-        "section": [{
-            "name": name,
-            "content": content,
-            "tables": [{"visualization": "", "table_id": "", "table_title": "", "visualization_type": ""}],
-            "id": str(uuid.uuid4()),
-            "summary": "",
-        }],
-        "sub_sections": [{
-            "name": "",
-            "content": "",
-            "tables": [{"visualization": "", "table_id": "", "table_title": "", "visualization_type": ""}],
-            "id": str(uuid.uuid4()),
-            "summary": "",
-        }],
+        "section": [
+            {
+                "name": name,
+                "content": content,
+                "tables": [
+                    {
+                        "visualization": "",
+                        "table_id": "",
+                        "table_title": "",
+                        "visualization_type": "",
+                    }
+                ],
+                "id": str(uuid.uuid4()),
+                "summary": "",
+            }
+        ],
+        "sub_sections": [
+            {
+                "name": "",
+                "content": "",
+                "tables": [
+                    {
+                        "visualization": "",
+                        "table_id": "",
+                        "table_title": "",
+                        "visualization_type": "",
+                    }
+                ],
+                "id": str(uuid.uuid4()),
+                "summary": "",
+            }
+        ],
         "citations": {},
         "summary": "",
     }
@@ -965,11 +1080,14 @@ def _normalise_citations(
         for c in raw_citations:
             url = c.get("url")
             if url:
-                from src.core.cards.card_utils import clean_url
+                from app.cards.service_cards import clean_url
+
                 try:
                     urls.append(clean_url(url))
                 except Exception:
-                    urls.append(url.replace("?utm_source=openai", "").replace("&utm_source=openai", ""))
+                    urls.append(
+                        url.replace("?utm_source=openai", "").replace("&utm_source=openai", "")
+                    )
         return urls
 
     return list(raw_citations)

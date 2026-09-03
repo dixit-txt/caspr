@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.logging import setup_logging
-
 
 _ANALYTICS_URL_RE = re.compile(r"https?://[^\s<>\]\[()\"']+")
 logger = setup_logging(__name__)
@@ -22,12 +21,10 @@ def _analytics_dict(value: Any) -> dict:
     return {}
 
 
-def _urls_in_rendered_output(value: Any) -> List[str]:
-    urls: List[str] = []
+def _urls_in_rendered_output(value: Any) -> list[str]:
+    urls: list[str] = []
     if isinstance(value, str):
-        urls.extend(
-            match.rstrip(".,;:!?") for match in _ANALYTICS_URL_RE.findall(value)
-        )
+        urls.extend(match.rstrip(".,;:!?") for match in _ANALYTICS_URL_RE.findall(value))
     elif isinstance(value, dict):
         for child in value.values():
             urls.extend(_urls_in_rendered_output(child))
@@ -37,7 +34,7 @@ def _urls_in_rendered_output(value: Any) -> List[str]:
     return urls
 
 
-def _raw_response_json(response: Any) -> Optional[Dict[str, Any]]:
+def _raw_response_json(response: Any) -> dict[str, Any] | None:
     """Full JSON-serializable dump of the raw SDK response object, or None."""
     model_dump = getattr(response, "model_dump", None)
     if callable(model_dump):
@@ -51,7 +48,7 @@ def _raw_response_json(response: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _annotation_link(annotation: Any) -> Optional[dict]:
+def _annotation_link(annotation: Any) -> dict | None:
     payload = _analytics_dict(annotation)
     nested = _analytics_dict(payload.get("url_citation"))
     source = nested or payload
@@ -70,7 +67,7 @@ def extract_openai_search_analytics(
     rendered_output: Any = None,
     *,
     include_raw_response: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract OpenAI candidates and citations without inferring usage.
 
     ``include_raw_response`` is opt-in: it attaches the full
@@ -82,9 +79,9 @@ def extract_openai_search_analytics(
     """
     payload = _analytics_dict(response)
     output = payload.get("output") or []
-    candidate_links: List[Dict[str, Any]] = []
-    cited_links: List[Dict[str, Any]] = []
-    provider_queries: List[str] = []
+    candidate_links: list[dict[str, Any]] = []
+    cited_links: list[dict[str, Any]] = []
+    provider_queries: list[str] = []
     search_call_count = 0
     final_message_index = next(
         (
@@ -125,11 +122,7 @@ def extract_openai_search_analytics(
             ):
                 if isinstance(result_group, list):
                     results.extend(result_group)
-            call_id = (
-                item_dict.get("call_id")
-                or item_dict.get("id")
-                or action.get("call_id")
-            )
+            call_id = item_dict.get("call_id") or item_dict.get("id") or action.get("call_id")
             for result_rank, result in enumerate(results, 1):
                 result_dict = _analytics_dict(result)
                 if result_dict.get("url"):
@@ -138,8 +131,7 @@ def extract_openai_search_analytics(
                             "url": result_dict["url"],
                             "title": result_dict.get("title"),
                             "snippet": (
-                                result_dict.get("snippet")
-                                or result_dict.get("description")
+                                result_dict.get("snippet") or result_dict.get("description")
                             ),
                             "search_call_id": call_id,
                             "search_call_index": call_index,
@@ -157,13 +149,9 @@ def extract_openai_search_analytics(
                 if rendered_output is None and output_index == final_message_index:
                     rendered_value = block_dict.get("parsed")
                     if rendered_value is None:
-                        rendered_value = (
-                            block_dict.get("text") or block_dict.get("output_text")
-                        )
+                        rendered_value = block_dict.get("text") or block_dict.get("output_text")
                     for url in _urls_in_rendered_output(rendered_value):
-                        cited_links.append(
-                            {"url": url, "citation_order": len(cited_links)}
-                        )
+                        cited_links.append({"url": url, "citation_order": len(cited_links)})
 
     for url in _urls_in_rendered_output(rendered_output):
         cited_links.append({"url": url, "citation_order": len(cited_links)})
@@ -187,10 +175,10 @@ def extract_openai_search_analytics(
     return result
 
 
-def extract_perplexity_search_analytics(response: Any) -> Dict[str, Any]:
+def extract_perplexity_search_analytics(response: Any) -> dict[str, Any]:
     """Extract Perplexity candidates and citations as independent lists."""
     payload = _analytics_dict(response)
-    candidate_links: List[Dict[str, Any]] = []
+    candidate_links: list[dict[str, Any]] = []
     for rank, result in enumerate(payload.get("search_results") or [], 1):
         result_dict = _analytics_dict(result)
         if result_dict.get("url"):
@@ -198,14 +186,12 @@ def extract_perplexity_search_analytics(response: Any) -> Dict[str, Any]:
                 {
                     "url": result_dict["url"],
                     "title": result_dict.get("title"),
-                    "snippet": (
-                        result_dict.get("snippet") or result_dict.get("description")
-                    ),
+                    "snippet": (result_dict.get("snippet") or result_dict.get("description")),
                     "result_rank": rank,
                 }
             )
 
-    cited_links: List[Dict[str, Any]] = []
+    cited_links: list[dict[str, Any]] = []
     for citation in payload.get("citations") or []:
         citation_dict = _analytics_dict(citation)
         if isinstance(citation, str):
@@ -224,9 +210,7 @@ def extract_perplexity_search_analytics(response: Any) -> Dict[str, Any]:
     if isinstance(queries, str):
         provider_queries = [queries]
     elif isinstance(queries, list):
-        provider_queries = [
-            value for value in queries if isinstance(value, str) and value
-        ]
+        provider_queries = [value for value in queries if isinstance(value, str) and value]
     else:
         provider_queries = []
 
@@ -251,8 +235,8 @@ def extract_perplexity_search_analytics(response: Any) -> Dict[str, Any]:
 
 def extract_gemini_search_analytics(
     response: Any,
-    model_used: Optional[str] = None,
-) -> Dict[str, Any]:
+    model_used: str | None = None,
+) -> dict[str, Any]:
     """Extract Gemini search queries/citations from either response shape.
 
     Supports both the legacy ``generate_content`` response (grounding metadata
@@ -272,12 +256,12 @@ def extract_gemini_search_analytics(
     candidate_payload = _analytics_dict(candidates[0]) if candidates else {}
     grounding = _analytics_dict(candidate_payload.get("grounding_metadata"))
 
-    provider_queries: List[str] = []
+    provider_queries: list[str] = []
     queries = grounding.get("web_search_queries")
     if isinstance(queries, list):
         provider_queries.extend(q for q in queries if isinstance(q, str) and q)
 
-    candidate_links: List[Dict[str, Any]] = []
+    candidate_links: list[dict[str, Any]] = []
     chunks = grounding.get("grounding_chunks") or []
     for rank, chunk in enumerate(chunks, 1):
         chunk_dict = _analytics_dict(chunk)
@@ -313,13 +297,13 @@ def extract_gemini_search_analytics(
 
 
 def _extract_gemini_search_analytics_from_interaction(
-    payload: Dict[str, Any],
-    model_used: Optional[str] = None,
-) -> Dict[str, Any]:
+    payload: dict[str, Any],
+    model_used: str | None = None,
+) -> dict[str, Any]:
     """Extract search analytics from an Interactions API ``Interaction`` payload."""
     steps = payload.get("steps") or []
 
-    provider_queries: List[str] = []
+    provider_queries: list[str] = []
     for step in steps:
         step_dict = _analytics_dict(step)
         if step_dict.get("type") != "google_search_call":
@@ -329,7 +313,7 @@ def _extract_gemini_search_analytics_from_interaction(
         if isinstance(queries, list):
             provider_queries.extend(q for q in queries if isinstance(q, str) and q)
 
-    candidate_links: List[Dict[str, Any]] = []
+    candidate_links: list[dict[str, Any]] = []
     for step in steps:
         step_dict = _analytics_dict(step)
         if step_dict.get("type") != "model_output":
@@ -376,7 +360,7 @@ def _extract_gemini_search_analytics_from_interaction(
     }
 
 
-def defer_provider_citations(entry: Dict[str, Any]) -> Dict[str, Any]:
+def defer_provider_citations(entry: dict[str, Any]) -> dict[str, Any]:
     """Keep provider citations private until an entry produces the final card."""
     entry["_provider_cited_links"] = list(entry.get("cited_links") or [])
     entry["cited_links"] = []
@@ -385,9 +369,9 @@ def defer_provider_citations(entry: Dict[str, Any]) -> Dict[str, Any]:
 
 def collect_openai_search_analytics(
     response: Any,
-    collector: Optional[List[Dict[str, Any]]],
-    operation_id: Optional[str],
-) -> Optional[Dict[str, Any]]:
+    collector: list[dict[str, Any]] | None,
+    operation_id: str | None,
+) -> dict[str, Any] | None:
     """Append analytics for one successful OpenAI web-enabled response.
 
     Used exclusively by card generation, card refinement, and Ask Caspr, so
@@ -415,24 +399,20 @@ def collect_openai_search_analytics(
         )
         return entry
     except Exception:
-        logger.exception(
-            "[web_search_analytics] Failed to collect OpenAI web-search analytics"
-        )
+        logger.exception("[web_search_analytics] Failed to collect OpenAI web-search analytics")
         return None
 
 
 def collect_perplexity_search_analytics(
     response_dict: Any,
-    collector: Optional[List[Dict[str, Any]]],
-    operation_id: Optional[str],
-) -> Optional[Dict[str, Any]]:
+    collector: list[dict[str, Any]] | None,
+    operation_id: str | None,
+) -> dict[str, Any] | None:
     """Append analytics for one successful Perplexity response."""
     if collector is None:
         return None
     try:
-        entry = defer_provider_citations(
-            extract_perplexity_search_analytics(response_dict)
-        )
+        entry = defer_provider_citations(extract_perplexity_search_analytics(response_dict))
         entry["operation_id"] = operation_id
         entry["attempt_number"] = len(collector) + 1
         collector.append(entry)
@@ -445,18 +425,16 @@ def collect_perplexity_search_analytics(
         )
         return entry
     except Exception:
-        logger.exception(
-            "[web_search_analytics] Failed to collect Perplexity web-search analytics"
-        )
+        logger.exception("[web_search_analytics] Failed to collect Perplexity web-search analytics")
         return None
 
 
 def collect_gemini_search_analytics(
     response: Any,
-    collector: Optional[List[Dict[str, Any]]],
-    operation_id: Optional[str],
-    model_used: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    collector: list[dict[str, Any]] | None,
+    operation_id: str | None,
+    model_used: str | None = None,
+) -> dict[str, Any] | None:
     """Append analytics for one successful Gemini grounded response."""
     if collector is None:
         return None
@@ -476,16 +454,14 @@ def collect_gemini_search_analytics(
         )
         return entry
     except Exception:
-        logger.exception(
-            "[web_search_analytics] Failed to collect Gemini web-search analytics"
-        )
+        logger.exception("[web_search_analytics] Failed to collect Gemini web-search analytics")
         return None
 
 
 def enrich_terminal_search_analytics(
-    collector: List[Dict[str, Any]],
+    collector: list[dict[str, Any]],
     rendered_card: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Attribute terminal provider citations and final rendered URLs only.
 
     The returned ``cited_links`` intentionally concatenates
@@ -494,7 +470,7 @@ def enrich_terminal_search_analytics(
     ``rendered_card`` — the same URL commonly appears in both, since the
     final rendered content usually embeds the annotated URL directly.
     Deduplication is NOT done here; it happens at persistence time in
-    ``src/db/web_search_db.py::_normalize_links`` (keyed by canonical URL,
+    ``app.admin.repository_web_search.py::_normalize_links`` (keyed by canonical URL,
     cited role only), so this function's raw, possibly-duplicated list is
     still useful for callers that want the unmodified provider vs.
     rendered-text signal.
@@ -510,7 +486,7 @@ def enrich_terminal_search_analytics(
     if terminal_entry is None:
         return None
 
-    cited_links: List[Dict[str, Any]] = []
+    cited_links: list[dict[str, Any]] = []
     for link in terminal_entry.get("_provider_cited_links") or []:
         link_dict = _analytics_dict(link)
         if link_dict.get("url"):
@@ -531,11 +507,11 @@ def enrich_terminal_search_analytics(
 
 def log_scheduled_analytics_batch(
     trigger_source: str,
-    collector: List[Dict[str, Any]],
+    collector: list[dict[str, Any]],
     *,
-    operation_id: Optional[str] = None,
-    section_name: Optional[str] = None,
-    card_id: Optional[str] = None,
+    operation_id: str | None = None,
+    section_name: str | None = None,
+    card_id: str | None = None,
 ) -> None:
     """Log a summary before flushing collected card-generation analytics."""
     if not collector:
@@ -567,16 +543,12 @@ _SEARCH_ANALYTICS_SCHEDULE_FIELDS = {
 }
 
 
-def search_analytics_schedule_kwargs(entry: Dict[str, Any]) -> Dict[str, Any]:
+def search_analytics_schedule_kwargs(entry: dict[str, Any]) -> dict[str, Any]:
     """Return only fields accepted by ``log_web_search_event``."""
-    return {
-        key: value
-        for key, value in entry.items()
-        if key in _SEARCH_ANALYTICS_SCHEDULE_FIELDS
-    }
+    return {key: value for key, value in entry.items() if key in _SEARCH_ANALYTICS_SCHEDULE_FIELDS}
 
 
-def logical_card_id(card: Any) -> Optional[str]:
+def logical_card_id(card: Any) -> str | None:
     payload = _analytics_dict(card)
     sections = payload.get("section")
     if not isinstance(sections, list) or not sections:

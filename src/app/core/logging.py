@@ -1,30 +1,30 @@
 """log_helper.py: Helper for logging with UTC timestamps and colour-coded console output."""
+
 import logging
 import os
 import sys
 import time
 from typing import Any
 
-
 # ANSI colour codes
-_RESET   = "\033[0m"
-_BOLD    = "\033[1m"
-_GREY    = "\033[38;5;240m"
-_CYAN    = "\033[36m"
-_YELLOW  = "\033[33m"
-_RED     = "\033[31m"
-_RED_BG  = "\033[41m"
+_RESET = "\033[0m"
+_BOLD = "\033[1m"
+_GREY = "\033[38;5;240m"
+_CYAN = "\033[36m"
+_YELLOW = "\033[33m"
+_RED = "\033[31m"
+_RED_BG = "\033[41m"
 
 _LEVEL_COLORS = {
-    logging.DEBUG:    _GREY,
-    logging.INFO:     _CYAN,
-    logging.WARNING:  _YELLOW,
-    logging.ERROR:    _RED,
+    logging.DEBUG: _GREY,
+    logging.INFO: _CYAN,
+    logging.WARNING: _YELLOW,
+    logging.ERROR: _RED,
     logging.CRITICAL: _RED_BG + _BOLD,
 }
 
-_LOG_FORMAT = '%(asctime)s UTC - %(name)s - %(levelname)s - [Line:%(lineno)d] %(message)s'
-_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+_LOG_FORMAT = "%(asctime)s UTC - %(name)s - %(levelname)s - [Line:%(lineno)d] %(message)s"
+_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 class _ExceptionCaptureFilter(logging.Filter):
@@ -45,9 +45,11 @@ class _ExceptionCaptureFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if record.levelno >= logging.ERROR:
             import sys
+
             if sys.exc_info()[0] is not None:
                 try:
                     from app.observability.error_alerter import capture_exception_for_alerter
+
                     capture_exception_for_alerter(logger_name=record.name)
                 except Exception:
                     pass
@@ -164,24 +166,20 @@ class StructuredLogger:
         self._emit(logging.INFO, separator, stacklevel=3)
         self._emit(
             logging.INFO,
-            " | ".join(
-                _cell(headers[i], widths[i], align[i]) for i in range(col_count)
-            ),
+            " | ".join(_cell(headers[i], widths[i], align[i]) for i in range(col_count)),
             stacklevel=3,
         )
         self._emit(logging.INFO, separator, stacklevel=3)
         for row in rows:
             self._emit(
                 logging.INFO,
-                " | ".join(
-                    _cell(row[i], widths[i], align[i]) for i in range(col_count)
-                ),
+                " | ".join(_cell(row[i], widths[i], align[i]) for i in range(col_count)),
                 stacklevel=3,
             )
         self._emit(logging.INFO, separator, stacklevel=3)
 
 
-def setup_logging(file=None, log_file_path='app.log'):
+def setup_logging(file=None, log_file_path="app.log"):
     """Configure the application logging system with console and file output using UTC time.
 
     Console output is colour-coded by level when running in a TTY:
@@ -214,7 +212,7 @@ def setup_logging(file=None, log_file_path='app.log'):
         logger.addHandler(console_handler)
 
         # File handler — always plain text
-        file_handler = logging.FileHandler(log_file_path, mode='a')
+        file_handler = logging.FileHandler(log_file_path, mode="a")
         file_handler.setFormatter(plain_formatter)
         logger.addHandler(file_handler)
 

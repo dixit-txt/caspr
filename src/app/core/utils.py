@@ -1,4 +1,3 @@
-import asyncio
 from fastapi.concurrency import run_in_threadpool
 from passlib.hash import argon2
 from uuid_utils import uuid7
@@ -42,9 +41,7 @@ def extract_content(card: dict, default_key: str = None) -> str:
     return ""
 
 
-
 from copy import deepcopy
-from typing import Dict, List, Set, Tuple
 
 # --- Configuration: what to always keep ---
 # section "types" on cards that are always common and should be retained even without cross-checking
@@ -52,9 +49,11 @@ ALWAYS_KEEP_CARD_TYPES = {"title", "subtitle", "toc", "es"}
 # sometimes section names might be used instead of types to identify the same
 ALWAYS_KEEP_SECTION_NAMES = {"title", "subtitle", "table_of_contents", "executive_summary"}
 
+
 def _norm(s: str) -> str:
     """Normalize strings for robust matching."""
     return (s or "").strip().lower()
+
 
 def _extract_section_name(section_block: dict) -> str:
     """
@@ -67,22 +66,25 @@ def _extract_section_name(section_block: dict) -> str:
     except Exception:
         return ""
 
-def _build_card_index(cards: List[dict]) -> Tuple[Set[str], Dict[str, Set[str]], Set[str]]:
+
+def _build_card_index(cards: list[dict]) -> tuple[set[str], dict[str, set[str]], set[str]]:
     """
     Build indices from cards:
       - section_names_in_cards: set of section titles found in cards (excluding always-keep types)
       - subsection_names_by_section: mapping of section title -> set of subsection names in that card
       - always_keep_ids: set of normalized section names that should be kept because card type is always-keep
     """
-    section_names_in_cards: Set[str] = set()
-    subsection_names_by_section: Dict[str, Set[str]] = {}
-    always_keep_ids: Set[str] = set()
+    section_names_in_cards: set[str] = set()
+    subsection_names_by_section: dict[str, set[str]] = {}
+    always_keep_ids: set[str] = set()
 
     for card in cards or []:
         ctype = _norm(card.get("type", ""))
         title = _norm(card.get("title", ""))
 
-        if ctype in ALWAYS_KEEP_CARD_TYPES or title in { _norm(n) for n in ALWAYS_KEEP_SECTION_NAMES }:
+        if ctype in ALWAYS_KEEP_CARD_TYPES or title in {
+            _norm(n) for n in ALWAYS_KEEP_SECTION_NAMES
+        }:
             # mark this section name as always-keep too (helps when names are used instead of types)
             if title:
                 always_keep_ids.add(title)
@@ -103,7 +105,8 @@ def _build_card_index(cards: List[dict]) -> Tuple[Set[str], Dict[str, Set[str]],
 
     return section_names_in_cards, subsection_names_by_section, always_keep_ids
 
-def prune_report_layout(report_layout: List[dict], cards: List[dict]) -> List[dict]:
+
+def prune_report_layout(report_layout: list[dict], cards: list[dict]) -> list[dict]:
     """
     Return a deep-copied report_layout where:
       - Sections are kept only if:
@@ -131,7 +134,7 @@ def prune_report_layout(report_layout: List[dict], cards: List[dict]) -> List[di
 
     section_names_in_cards, subsection_names_by_section, always_keep_ids = _build_card_index(cards)
 
-    pruned: List[dict] = []
+    pruned: list[dict] = []
     for block in rl:
         # defensive copy
         block_copy = deepcopy(block)
@@ -142,7 +145,7 @@ def prune_report_layout(report_layout: List[dict], cards: List[dict]) -> List[di
 
         # Decide if section is always-keep
         is_always_keep = (
-            sec_name_norm in { _norm(n) for n in ALWAYS_KEEP_SECTION_NAMES }
+            sec_name_norm in {_norm(n) for n in ALWAYS_KEEP_SECTION_NAMES}
             or sec_name_norm in always_keep_ids
         )
 

@@ -17,13 +17,13 @@ from langgraph.config import get_stream_writer
 from langgraph.graph import END, StateGraph
 
 from app.core.logging import setup_logging
+from app.research.domains.due_diligence.config import DUE_DILIGENCE_CONFIG
 from app.research.domains.planner import (
     BaseDomainState,
     generate_section_cards,
     plan_report_layout,
     synthesize_report,
 )
-from app.research.domains.due_diligence.config import DUE_DILIGENCE_CONFIG
 
 logger = setup_logging(__name__)
 _CFG = DUE_DILIGENCE_CONFIG
@@ -107,6 +107,7 @@ def _build_dd_external_tools(
 ) -> list[dict]:
     def handler(args: dict) -> str:
         return _dd_research_handler(mcp_server_url, args, chat_id=chat_id, user_id=user_id)
+
     return [{**DD_RESEARCH_TOOL_DEFINITION, "_handler": handler}]
 
 
@@ -151,27 +152,25 @@ async def dd_generate_cards_and_synthesize(state: DueDiligenceState) -> DueDilig
     )
 
     _user_id = state.get("user_id") or state.get("user_name", "")
-    cards_for_db, cumulative_summary, all_citations, table_map = (
-        await generate_section_cards(
-            descriptive_report_layout=state["descriptive_report_layout"],
-            user_instructions=state.get("user_instructions", ""),
-            upload_file_config=state.get("upload_file_config"),
-            report_length=state.get("report_length", "overview"),
-            web_search=True,
-            user_name=state.get("user_name", ""),
+    cards_for_db, cumulative_summary, all_citations, table_map = await generate_section_cards(
+        descriptive_report_layout=state["descriptive_report_layout"],
+        user_instructions=state.get("user_instructions", ""),
+        upload_file_config=state.get("upload_file_config"),
+        report_length=state.get("report_length", "overview"),
+        web_search=True,
+        user_name=state.get("user_name", ""),
+        chat_id=state.get("chat_id", ""),
+        user_id=_user_id,
+        domain_config=_CFG,
+        event_writer=event_writer,
+        s3_instance=state.get("s3_instance"),
+        external_tools=_build_dd_external_tools(
+            state.get("mcp_server_url", ""),
             chat_id=state.get("chat_id", ""),
             user_id=_user_id,
-            domain_config=_CFG,
-            event_writer=event_writer,
-            s3_instance=state.get("s3_instance"),
-            external_tools=_build_dd_external_tools(
-                state.get("mcp_server_url", ""),
-                chat_id=state.get("chat_id", ""),
-                user_id=_user_id,
-            ),
-            grep_session=state.get("grep_session"),
-            report_type="study",
-        )
+        ),
+        grep_session=state.get("grep_session"),
+        report_type="study",
     )
 
     ai_message = await synthesize_report(

@@ -26,12 +26,13 @@ NOT a SQLAlchemy Enum / Postgres native enum. The ``costtracker.functionality``
 column is a plain string, so adding / renaming buckets never needs a DB enum
 migration — we just change this file.
 """
+
 from __future__ import annotations
 
 import contextvars
+from collections.abc import Iterator
 from contextlib import contextmanager
 from enum import Enum
-from typing import Iterator, Optional
 
 
 class Functionality(str, Enum):
@@ -100,7 +101,7 @@ _FEATURE_LABEL_REPLACEMENTS: dict[str, str] = {
 }
 
 
-def remap_feature_label(raw: Optional[str]) -> str:
+def remap_feature_label(raw: str | None) -> str:
     """Return the user-facing display label for a costtracker context / agent_name.
 
     Any string that is a raw internal web-search label (``websearch``,
@@ -119,7 +120,7 @@ def remap_feature_label(raw: Optional[str]) -> str:
     return raw
 
 
-def normalize_functionality(functionality: Optional[str]) -> str:
+def normalize_functionality(functionality: str | None) -> str:
     """Canonical functionality key for dashboard / logging (aliases remapped)."""
     if not functionality:
         return Functionality.OTHER.value
@@ -127,32 +128,30 @@ def normalize_functionality(functionality: Optional[str]) -> str:
     return _FUNCTIONALITY_ALIASES.get(key, key)
 
 
-def label_for(functionality: Optional[str]) -> str:
+def label_for(functionality: str | None) -> str:
     """Display name for a functionality value (falls back to Other).
 
     ``websearch`` / ``web_search`` are always shown as ``Learning Brain``.
     """
     key = normalize_functionality(functionality)
-    return FUNCTIONALITY_LABELS.get(
-        key, key.replace("_", " ").title()
-    )
+    return FUNCTIONALITY_LABELS.get(key, key.replace("_", " ").title())
 
 
 # ---------------------------------------------------------------------------
 # ContextVar scope — set once at an entry point, inherited by nested work.
 # ---------------------------------------------------------------------------
 
-_functionality_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_functionality_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "caspr_functionality", default=None
 )
 
 
-def get_functionality() -> Optional[str]:
+def get_functionality() -> str | None:
     """Current scoped functionality value, or ``None`` if unscoped."""
     return _functionality_var.get()
 
 
-def set_functionality(functionality: "Functionality | str | None") -> contextvars.Token:
+def set_functionality(functionality: Functionality | str | None) -> contextvars.Token:
     """Set the current functionality; returns a token to restore it later."""
     value = functionality.value if isinstance(functionality, Functionality) else functionality
     return _functionality_var.set(value)
@@ -162,13 +161,13 @@ def reset_functionality(token: contextvars.Token) -> None:
     """Restore the functionality set before the matching :func:`set_functionality`."""
     try:
         _functionality_var.reset(token)
-    except (ValueError, LookupError):
+    except ValueError, LookupError:
         # Token created in a different context (e.g. across threads) — ignore.
         pass
 
 
 @contextmanager
-def functionality_scope(functionality: "Functionality | str") -> Iterator[None]:
+def functionality_scope(functionality: Functionality | str) -> Iterator[None]:
     """Scope a block of work to one functionality.
 
     Use at API entry points / sub-flow boundaries. All LLM calls made while
@@ -223,17 +222,28 @@ _CONTEXT_RULES: list[tuple[tuple[str, ...], Functionality]] = [
     # executive summary" is part of INITIAL generation and is intentionally NOT
     # here — it falls through to report_generation below.
     (
-        ("executive summary needs an update", "checking whether the executive summary",
-         "updating the executive summary", "executive summary after report changes",
-         "executive_summary_updater"),
+        (
+            "executive summary needs an update",
+            "checking whether the executive summary",
+            "updating the executive summary",
+            "executive summary after report changes",
+            "executive_summary_updater",
+        ),
         Functionality.EXECUTIVE_SUMMARY,
     ),
     # Visualization refinement (user edits an existing chart/table viz).
     (
-        ("visualization based on feedback", "refined table visualization",
-         "refined chart visualization", "regenerating a chart image after edits",
-         "refine_visualiz", "viz_refine", "visualizer_refine", "graph_maker_refine",
-         "table_visualizer_refine"),
+        (
+            "visualization based on feedback",
+            "refined table visualization",
+            "refined chart visualization",
+            "regenerating a chart image after edits",
+            "refine_visualiz",
+            "viz_refine",
+            "visualizer_refine",
+            "graph_maker_refine",
+            "table_visualizer_refine",
+        ),
         Functionality.REFINE_VISUALIZATION,
     ),
     # Card refinement (user refines a report card). Includes the refiner's
@@ -251,15 +261,27 @@ _CONTEXT_RULES: list[tuple[tuple[str, ...], Functionality]] = [
     # Must come before chat so "Looking up the latest information…" is not
     # mis-attributed to chat.
     (
-        ("latest information on the topic", "using learning brain", "learning brain",
-         "retrieve_latest", "web_search", "websearch"),
+        (
+            "latest information on the topic",
+            "using learning brain",
+            "learning brain",
+            "retrieve_latest",
+            "web_search",
+            "websearch",
+        ),
         Functionality.LEARNING_BRAIN,
     ),
     # Interactive chat / planning agent (NOT the report-writing pipeline).
     (
-        ("main research request", "title for the chat",
-         "low-balance research request", "question from uploaded documents",
-         "normal_flow", "chat_title", "query_document"),
+        (
+            "main research request",
+            "title for the chat",
+            "low-balance research request",
+            "question from uploaded documents",
+            "normal_flow",
+            "chat_title",
+            "query_document",
+        ),
         Functionality.CHAT,
     ),
     # Report generation pipeline — the broad catch-all for everything that
@@ -269,35 +291,70 @@ _CONTEXT_RULES: list[tuple[tuple[str, ...], Functionality]] = [
     (
         (
             # outline / sections / summaries
-            "report outline", "report section content", "report section",
-            "summarizing a report section", "section summaries",
-            "overall report summary", "research preview", "report structure",
-            "polishing the executive summary", "fixing report section",
+            "report outline",
+            "report section content",
+            "report section",
+            "summarizing a report section",
+            "section summaries",
+            "overall report summary",
+            "research preview",
+            "report structure",
+            "polishing the executive summary",
+            "fixing report section",
             # tables & charts built during generation
-            "title for a table", "chart type for the data", "chart image",
-            "table should become a chart", "table needs a visual chart",
-            "visual chart", "chart instructions", "draw a chart",
-            "flowchart or diagram", "interactive chart", "chart visualization",
+            "title for a table",
+            "chart type for the data",
+            "chart image",
+            "table should become a chart",
+            "table needs a visual chart",
+            "visual chart",
+            "chart instructions",
+            "draw a chart",
+            "flowchart or diagram",
+            "interactive chart",
+            "chart visualization",
             "table visualization",
             # cards
-            "fixing a report card", "report card",
+            "fixing a report card",
+            "report card",
             # findings / metadata / dashboards
-            "key findings from the report", "industry or sector",
+            "key findings from the report",
+            "industry or sector",
             "dashboard highlights",
             # imagery / posters / publishing / styling
-            "cover image for the report", "report poster", "poster",
-            "report text for publishing", "publishing", "published report",
-            "matching poster", "for the report", "the report",
+            "cover image for the report",
+            "report poster",
+            "poster",
+            "report text for publishing",
+            "publishing",
+            "published report",
+            "matching poster",
+            "for the report",
+            "the report",
             # document search subsystem (used while writing sections)
-            "document search", "search across documents", "searching documents",
-            "search documents", "document context", "into an answer",
+            "document search",
+            "search across documents",
+            "searching documents",
+            "search documents",
+            "document context",
+            "into an answer",
             "answer a question",
             # research domains
-            "primary research document", "due diligence", "research analysis",
+            "primary research document",
+            "due diligence",
+            "research analysis",
             # code-identifier safety net
-            "card_utils", "card_fixer", "viz_pipeline", "html_graph_maker",
-            "html_table_visualizer", "publish", "grep", "primary_research",
-            "due_diligence", "content_processor", "poster_generator",
+            "card_utils",
+            "card_fixer",
+            "viz_pipeline",
+            "html_graph_maker",
+            "html_table_visualizer",
+            "publish",
+            "grep",
+            "primary_research",
+            "due_diligence",
+            "content_processor",
+            "poster_generator",
         ),
         Functionality.REPORT_GENERATION,
     ),
@@ -305,14 +362,12 @@ _CONTEXT_RULES: list[tuple[tuple[str, ...], Functionality]] = [
 
 
 def functionality_from_context(
-    context: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    model_name: Optional[str] = None,
+    context: str | None = None,
+    agent_name: str | None = None,
+    model_name: str | None = None,
 ) -> str:
     """Best-effort bucket from the raw call labels. Never raises; defaults OTHER."""
-    haystack = " ".join(
-        str(part) for part in (context, agent_name, model_name) if part
-    ).lower()
+    haystack = " ".join(str(part) for part in (context, agent_name, model_name) if part).lower()
     if not haystack:
         return Functionality.OTHER.value
     for needles, functionality in _CONTEXT_RULES:
@@ -323,10 +378,10 @@ def functionality_from_context(
 
 def resolve_functionality(
     *,
-    explicit: "Functionality | str | None" = None,
-    context: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    model_name: Optional[str] = None,
+    explicit: Functionality | str | None = None,
+    context: str | None = None,
+    agent_name: str | None = None,
+    model_name: str | None = None,
 ) -> str:
     """Resolve the functionality bucket for one LLM call.
 
@@ -338,6 +393,4 @@ def resolve_functionality(
     scoped = get_functionality()
     if scoped:
         return normalize_functionality(scoped)
-    return normalize_functionality(
-        functionality_from_context(context, agent_name, model_name)
-    )
+    return normalize_functionality(functionality_from_context(context, agent_name, model_name))

@@ -11,17 +11,17 @@ from enum import Enum
 class ReportStatus(Enum):
     """
     Enum representing the status of a report or report version.
-    
+
     Status Flow:
-        DRAFT → ANALYSIS_IN_PROGRESS → ANALYSIS_COMPLETED → GENERATING_OUTPUT 
+        DRAFT → ANALYSIS_IN_PROGRESS → ANALYSIS_COMPLETED → GENERATING_OUTPUT
         → OUTPUT_GENERATED
-        
+
         Special States:
         - REDO_ANALYSIS: User refined a card, needs regeneration
         - UPDATES_AVAILABLE: New updates detected (TODO)
         - AWAITING_CONFIRMATION: Pending user approval (TODO)
         - ERROR_GENERATION_REPORT: Report generation failed
-    
+
     Statuses:
         DRAFT: Chat just started, no cards generated yet
         AWAITING_CONFIRMATION: Pending user confirmation (TODO: not implemented)
@@ -33,6 +33,7 @@ class ReportStatus(Enum):
         REDO_ANALYSIS: User refined a card after generation
         ERROR_GENERATION_REPORT: Report generation failed
     """
+
     DRAFT = "draft"
     AWAITING_CONFIRMATION = "awaiting-confirmation"
     ANALYSIS_IN_PROGRESS = "analysis-in-progress"
@@ -42,33 +43,33 @@ class ReportStatus(Enum):
     UPDATES_AVAILABLE = "updates-available"
     REDO_ANALYSIS = "redo-analysis"
     ERROR_GENERATION_REPORT = "error-generation-report"
-    
+
     # # Legacy statuses (commented out - may be restored if requirements change)
     # IN_PROGRESS = "in_progress"
     # FAILED = "failed"
     # REPORT_GENERATED = "report_generated"
     # PRESENTATION_GENERATED = "presentation_generated"
-    
+
     @classmethod
     def values(cls):
         """Return list of all status values."""
         return [status.value for status in cls]
-    
+
     # @classmethod
     # def from_s3_uri(cls, s3_uri: dict) -> str:
     #     """
     #     Determine status from s3_uri contents.
     #     (Commented out - uses legacy statuses)
-    #     
+    #
     #     Args:
     #         s3_uri: Dictionary containing file paths
-    #         
+    #
     #     Returns:
     #         Appropriate status value
     #     """
     #     if not s3_uri:
     #         return cls.IN_PROGRESS.value
-    #     
+    #
     #     if s3_uri.get('pptx'):
     #         return cls.PRESENTATION_GENERATED.value
     #     elif s3_uri.get('pdf') or s3_uri.get('html'):
@@ -81,6 +82,7 @@ class FileType(Enum):
     """
     Enum representing supported file types for reports.
     """
+
     PDF = "pdf"
     MD = "md"
     HTML = "html"
@@ -92,6 +94,7 @@ class MessageType(Enum):
     """
     Enum representing the type of message in chat.
     """
+
     HUMAN = "human"
     SYSTEM = "system"
     AI = "ai"
@@ -101,7 +104,7 @@ class MessageType(Enum):
 class RefinementType(Enum):
     """
     Enum representing the type of card refinement or modification.
-    
+
     Types:
         REFINE_SECTION: AI refinement of a section
         REFINE_SUBSECTION: AI refinement of a subsection
@@ -112,6 +115,7 @@ class RefinementType(Enum):
         MANUAL_EDIT: Manual edit by user via /edit-card-content (legacy)
         EDIT_SECTION: Manual section edit by user via /edit-card-content
     """
+
     REFINE_SECTION = "re_section"
     REFINE_SUBSECTION = "re_subsection"
     REFINE_VISUALIZATION = "re_visualization"
@@ -120,7 +124,7 @@ class RefinementType(Enum):
     DELETE_SUBSECTION = "del_subsection"
     MANUAL_EDIT = "manual_edit"
     EDIT_SECTION = "edit_section"
-    
+
     @classmethod
     def values(cls):
         """Return list of all refinement type values."""
@@ -131,19 +135,21 @@ class RefinementType(Enum):
 # Wallet/Token System Enums
 # ============================================================================
 
+
 class SubscriptionTier(Enum):
     """
     Enum representing subscription tiers/plans.
-    
+
     Tiers:
         FREE: Free tier with signup bonus only (50,000 tokens)
         PLUS: Plus tier ($20/month, +25,000 tokens/month)
         PRO: Pro tier ($100/month, +150,000 tokens/month)
     """
+
     FREE = "free"
     PLUS = "plus"
     PRO = "pro"
-    
+
     @classmethod
     def values(cls):
         """Return list of all tier values."""
@@ -153,18 +159,19 @@ class SubscriptionTier(Enum):
 class TransactionType(Enum):
     """
     Enum representing types of token transactions.
-    
+
     Types:
         CREDIT: Tokens added to wallet (signup, subscription, topup)
         DEBIT: Tokens consumed (report generation completed)
         RESERVE: Tokens locked for pending operation (report generation started)
         RELEASE: Reserved tokens returned (operation failed/cancelled)
     """
+
     CREDIT = "credit"
     DEBIT = "debit"
     RESERVE = "reserve"
     RELEASE = "release"
-    
+
     @classmethod
     def values(cls):
         """Return list of all transaction type values."""
@@ -174,7 +181,7 @@ class TransactionType(Enum):
 class TransactionSource(Enum):
     """
     Enum representing the source/reason for a token transaction.
-    
+
     Sources:
         SIGNUP_BONUS: One-time tokens on user signup
         SUBSCRIPTION: Monthly tokens from Plus/Pro subscription
@@ -184,6 +191,7 @@ class TransactionSource(Enum):
         EXPIRY: Tokens expired (batch reached expiry date)
         BONUS: Manual bonus credits added by administrators
     """
+
     SIGNUP_BONUS = "SIGNUP_BONUS"
     SUBSCRIPTION = "SUBSCRIPTION"
     TOPUP = "TOPUP"
@@ -191,7 +199,7 @@ class TransactionSource(Enum):
     REFUND = "REFUND"
     EXPIRY = "EXPIRY"
     BONUS = "BONUS"
-    
+
     @classmethod
     def values(cls):
         """Return list of all transaction source values."""
@@ -201,7 +209,7 @@ class TransactionSource(Enum):
 class TransactionStatus(Enum):
     """
     Enum representing the status of a token transaction or token batch.
-    
+
     Statuses:
         COMPLETED: Transaction/batch successfully processed
         PENDING: Transaction in progress (e.g., reservation waiting for completion)
@@ -209,12 +217,13 @@ class TransactionStatus(Enum):
         REVERSED: Transaction was reversed/cancelled (for transactions)
         INVALIDATED: Batch was invalidated due to plan change (for token batches)
     """
+
     COMPLETED = "COMPLETED"
     PENDING = "PENDING"
     FAILED = "FAILED"
     REVERSED = "REVERSED"
     INVALIDATED = "INVALIDATED"  # For token batches during plan changes
-    
+
     @classmethod
     def values(cls):
         """Return list of all transaction status values."""
@@ -224,7 +233,7 @@ class TransactionStatus(Enum):
 class SubscriptionStatus(Enum):
     """
     Enum representing the status of a subscription or subscription interval.
-    
+
     Statuses:
         ACTIVE: Subscription is currently active (Legacy)
         CREATED: Subscription created, awaiting user approval
@@ -238,6 +247,7 @@ class SubscriptionStatus(Enum):
         EXPIRED: Subscription expired
         REFUNDED: Subscription was refunded
     """
+
     ACTIVE = "active"
     CREATED = "created"
     AUTHENTICATED = "authenticated"
@@ -249,7 +259,7 @@ class SubscriptionStatus(Enum):
     COMPLETED = "completed"
     EXPIRED = "expired"
     REFUNDED = "refunded"
-    
+
     @classmethod
     def values(cls):
         """Return list of all subscription status values."""
@@ -259,6 +269,7 @@ class SubscriptionStatus(Enum):
 # ============================================================================
 # File Upload System Enums
 # ============================================================================
+
 
 class UploadedFileStatus(Enum):
     """
@@ -276,6 +287,7 @@ class UploadedFileStatus(Enum):
         S3_FILE_MISSING: S3 object was deleted or unreachable (detected by cron).
         EXPIRED: File auto-expired after retention period (future cron use).
     """
+
     PENDING_OPENAI_UPLOAD = "pending_openai_upload"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -297,6 +309,7 @@ class FileUsageType(Enum):
         NEW_UPLOAD: The user uploaded a brand-new file in this chat.
         REFERENCE: The user picked this file from the memory library.
     """
+
     NEW_UPLOAD = "new_upload"
     REFERENCE = "reference"
 
@@ -314,6 +327,7 @@ class FileUploadContext(Enum):
         IN_CHAT: File was uploaded as part of a chat conversation.
         STANDALONE: File was uploaded independently (future use).
     """
+
     IN_CHAT = "in_chat"
     STANDALONE = "standalone"
 
@@ -321,4 +335,3 @@ class FileUploadContext(Enum):
     def values(cls):
         """Return list of all file upload context values."""
         return [c.value for c in cls]
-

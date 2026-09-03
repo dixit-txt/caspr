@@ -1,13 +1,13 @@
 """DD domain configuration."""
 
-from app.research.domains.planner import DomainConfig
 from app.research.domains.due_diligence.prompts import (
+    DD_CITATION_RULES,
     DD_DRL_ADDENDUM,
+    DD_FORMATTING_RULES,
     DD_SOURCE_RULES,
     DD_TABLE_RULES,
-    DD_FORMATTING_RULES,
-    DD_CITATION_RULES,
 )
+from app.research.domains.planner import DomainConfig
 
 DUE_DILIGENCE_CONFIG = DomainConfig(
     domain_name="due_diligence",

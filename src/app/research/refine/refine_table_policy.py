@@ -1,11 +1,11 @@
 """Table identity and visualization policy for card refinement."""
 
-from dataclasses import dataclass
 import logging
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from pydantic import BaseModel, Field
-
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 class VisualizationRefinementIntent(BaseModel):
     visualization_action_requested: bool = Field(
         description=(
-            "True only when the user asks to create, regenerate, or modify a "
-            "table visualization."
+            "True only when the user asks to create, regenerate, or modify a table visualization."
         )
     )
     reason: str = Field(description="Brief reason for the classification.")
@@ -23,22 +22,27 @@ class VisualizationRefinementIntent(BaseModel):
 @dataclass(frozen=True)
 class RefinedTableResult:
     content: str
-    tables: List[Dict[str, Any]]
-    table_markdown_map: Dict[str, str]
+    tables: list[dict[str, Any]]
+    table_markdown_map: dict[str, str]
 
 
 def classify_visualization_intent(
-    user_prompt: Optional[str],
+    user_prompt: str | None,
     *,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
     client: Any = None,
 ) -> bool:
     """Use GPT-4o mini structured output to classify visualization intent."""
     if not user_prompt or not user_prompt.strip():
         return False
 
-    from app.core.constants import REFINE_TABLE_POLICY_MODEL, SYNC_OPENAI_CLIENT, GEMINI_API_KEY, GEMINI_REFINE_TABLE_POLICY_MODEL
+    from app.core.constants import (
+        GEMINI_API_KEY,
+        GEMINI_REFINE_TABLE_POLICY_MODEL,
+        REFINE_TABLE_POLICY_MODEL,
+        SYNC_OPENAI_CLIENT,
+    )
 
     model_id = REFINE_TABLE_POLICY_MODEL
     should_log_response = client is None
@@ -89,11 +93,18 @@ modification is explicitly requested.
             raise ValueError("Visualization intent classifier returned no parsed result")
         return bool(parsed.visualization_action_requested)
     except Exception as e:
-        logger.warning(f"OpenAI visualization intent classification failed ({e}); falling back to Gemini")
+        logger.warning(
+            f"OpenAI visualization intent classification failed ({e}); falling back to Gemini"
+        )
         try:
-            from google import genai
-            from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
             import json
+
+            from google import genai
+
+            from app.observability.llm_response_logger import (
+                save_raw_llm_response,
+                strip_json_code_fence,
+            )
 
             gemini_client = genai.Client(api_key=GEMINI_API_KEY)
             interaction = gemini_client.interactions.create(
@@ -124,7 +135,9 @@ modification is explicitly requested.
             result = json.loads(strip_json_code_fence(interaction.output_text))
             return bool(result.get("visualization_action_requested", False))
         except Exception:
-            logger.exception("Visualization intent classification failed on both providers; defaulting to preserve")
+            logger.exception(
+                "Visualization intent classification failed on both providers; defaulting to preserve"
+            )
             return False
 
 
@@ -151,7 +164,7 @@ def _table_header(table: str) -> str:
     return _normalize_table(lines[0]) if lines else ""
 
 
-def _safe_generate(generator: Callable[..., Optional[str]], *args: Any) -> str:
+def _safe_generate(generator: Callable[..., str | None], *args: Any) -> str:
     try:
         return generator(*args) or ""
     except Exception:
@@ -162,15 +175,15 @@ def _safe_generate(generator: Callable[..., Optional[str]], *args: Any) -> str:
 def process_refined_tables(
     *,
     previous_content: Any,
-    previous_tables: Optional[Sequence[Mapping[str, Any]]],
+    previous_tables: Sequence[Mapping[str, Any]] | None,
     refined_content: str,
-    user_prompt: Optional[str],
+    user_prompt: str | None,
     extract_tables: Callable[[str], Sequence[str]],
     prepare_table: Callable[[str, str], Any],
     replace_table: Callable[[str, str, str], str],
-    auto_generate: Callable[[str], Optional[str]],
-    force_generate: Callable[[str, str, str], Optional[str]],
-    intent_classifier: Callable[[Optional[str]], bool],
+    auto_generate: Callable[[str], str | None],
+    force_generate: Callable[[str, str, str], str | None],
+    intent_classifier: Callable[[str | None], bool],
     new_id: Callable[[], str],
     default_visualization_type: str,
 ) -> RefinedTableResult:
@@ -186,14 +199,14 @@ def process_refined_tables(
     new_markdown = list(extract_tables(refined_content))
     force_visualization = bool(new_markdown) and intent_classifier(user_prompt)
 
-    old_by_normalized_markdown: Dict[str, List[int]] = {}
+    old_by_normalized_markdown: dict[str, list[int]] = {}
     for index, table in enumerate(old_markdown):
         old_by_normalized_markdown.setdefault(_normalize_table(table), []).append(index)
-    old_by_header: Dict[str, List[int]] = {}
+    old_by_header: dict[str, list[int]] = {}
     for index, table in enumerate(old_markdown):
         old_by_header.setdefault(_table_header(table), []).append(index)
 
-    exact_matches_by_new_index: Dict[int, int] = {}
+    exact_matches_by_new_index: dict[int, int] = {}
     reserved_old_indexes = set()
     for new_index, table in enumerate(new_markdown):
         for candidate in old_by_normalized_markdown.get(_normalize_table(table), []):
@@ -204,8 +217,8 @@ def process_refined_tables(
 
     used_old_indexes = set(reserved_old_indexes)
     processed_content = refined_content
-    processed_tables: List[Dict[str, Any]] = []
-    table_markdown_map: Dict[str, str] = {}
+    processed_tables: list[dict[str, Any]] = []
+    table_markdown_map: dict[str, str] = {}
 
     for index, table in enumerate(new_markdown):
         matching_index = exact_matches_by_new_index.get(index)
@@ -251,9 +264,7 @@ def process_refined_tables(
                 logger.exception("Table title preparation failed")
                 table_title = previous.get("table_title") or ""
 
-        should_generate = (
-            force_visualization or not unchanged or not previous_visualization
-        )
+        should_generate = force_visualization or not unchanged or not previous_visualization
         visualization = previous_visualization
         if should_generate:
             if force_visualization:
@@ -272,12 +283,14 @@ def process_refined_tables(
             if unchanged and previous.get("visualization_type")
             else default_visualization_type
         )
-        processed_tables.append({
-            "visualization": visualization,
-            "table_id": table_id,
-            "table_title": table_title,
-            "visualization_type": visualization_type,
-        })
+        processed_tables.append(
+            {
+                "visualization": visualization,
+                "table_id": table_id,
+                "table_title": table_title,
+                "visualization_type": visualization_type,
+            }
+        )
         table_markdown_map[table_id] = table
 
     return RefinedTableResult(

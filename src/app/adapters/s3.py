@@ -1,25 +1,26 @@
 """s3_utils.py - This file contains the functions for the S3 bucket operations"""
-import os 
+
+import os
 import re
-from urllib.parse import quote
-from datetime import datetime, timezone
-from dotenv import load_dotenv
-import boto3
-from botocore.exceptions import ClientError
-from app.core.logging import setup_logging
-from dataclasses import dataclass
-from botocore.client import BaseClient
 import time
-from functools import wraps, lru_cache
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from functools import lru_cache, wraps
+from urllib.parse import quote
+
+import boto3
+from botocore.client import BaseClient
+from botocore.exceptions import ClientError
 
 from app.core.constants import (
     LOCAL_S3,
-    S3_BUCKET_NAME,
     S3_ACCESS_KEY_ID,
-    S3_SECRET_ACCESS_KEY,
+    S3_BUCKET_NAME,
     S3_REGION_NAME,
     S3_REPORTS_BASE_PATH,
+    S3_SECRET_ACCESS_KEY,
 )
+from app.core.logging import setup_logging
 
 s3_logger = setup_logging(__file__)
 
@@ -37,45 +38,50 @@ def retry_with_backoff(retries=3, backoff_in_seconds=1):
                         raise e
                     else:
                         x += 1
-                        sleep = (backoff_in_seconds * 2 ** x)
+                        sleep = backoff_in_seconds * 2**x
                         s3_logger.warning(
-                            f"Retrying {func.__name__} - attempt {x} of {retries} after {sleep} seconds. Error: {str(e)}"
+                            f"Retrying {func.__name__} - attempt {x} of {retries} after {sleep} seconds. Error: {e!s}"
                         )
                         time.sleep(sleep)
+
         return wrapper
+
     return decorator
 
+
 @dataclass
-class S3Controls():
+class S3Controls:
     bucket_name: str
     aws_key_id: str
     aws_secret_key: str
     aws_region: str
     s3_client: BaseClient = None
-    
+
     def __post_init__(self):
         self.s3_client = boto3.client(
-            aws_access_key_id = self.aws_key_id,
-            aws_secret_access_key = self.aws_secret_key,
-            region_name = self.aws_region,
+            aws_access_key_id=self.aws_key_id,
+            aws_secret_access_key=self.aws_secret_key,
+            region_name=self.aws_region,
             service_name="s3",
-            endpoint_url = LOCAL_S3
+            endpoint_url=LOCAL_S3,
         )
-        
-        
+
     def check_if_key_exists(self, key: str):
         try:
-            self.s3_client.get_object(Key = key, Bucket = self.bucket_name)
+            self.s3_client.get_object(Key=key, Bucket=self.bucket_name)
             return True
-            
+
         except ClientError as err:
-            if err.response['Error']['Code'] == 'NoSuchKey':
+            if err.response["Error"]["Code"] == "NoSuchKey":
                 return False
-            
-            s3_logger.error('Error while checking whether key exists in S3 Bucket with key: %s', exc_info = True)
-            raise Exception(f"Error while checking whether key exists, reason: {err.response['Error']['Message']}")
-        
-        
+
+            s3_logger.error(
+                "Error while checking whether key exists in S3 Bucket with key: %s", exc_info=True
+            )
+            raise Exception(
+                f"Error while checking whether key exists, reason: {err.response['Error']['Message']}"
+            )
+
     def generate_presigned_url_fast(self, s3_key: str, timeout: int = 3600) -> str:
         """Generate a presigned URL *without* checking key existence first.
 
@@ -101,7 +107,7 @@ class S3Controls():
         :return: str
         """
         try:
-            if not self.check_if_key_exists(key = s3_key):
+            if not self.check_if_key_exists(key=s3_key):
                 raise Exception("No resource found with given key.")
 
             url = self.s3_client.generate_presigned_url(
@@ -110,12 +116,14 @@ class S3Controls():
                 ExpiresIn=timeout,
             )
             return url
-        
-        except:  
-            s3_logger.error('Link creation failed for s3_key = %s', exc_info=True)
+
+        except:
+            s3_logger.error("Link creation failed for s3_key = %s", exc_info=True)
             raise Exception("Link creation failed please try again.")
 
-    def get_download_presigned_url_with_filename(self, s3_key: str, filename: str, timeout: int = 3600) -> str:
+    def get_download_presigned_url_with_filename(
+        self, s3_key: str, filename: str, timeout: int = 3600
+    ) -> str:
         """
         Get the presigned URL to download the file with a custom filename
         :param s3_key: str - S3 key of the file
@@ -132,24 +140,26 @@ class S3Controls():
                 Params={
                     "Bucket": self.bucket_name,
                     "Key": s3_key,
-                    "ResponseContentDisposition": f"attachment; filename*=UTF-8''{quote(filename)}"
+                    "ResponseContentDisposition": f"attachment; filename*=UTF-8''{quote(filename)}",
                 },
                 ExpiresIn=timeout,
             )
             return url
-        
+
         except Exception as e:
-            s3_logger.error('Link creation failed for s3_key = %s, filename = %s: %s', s3_key, filename, str(e), exc_info=True)
+            s3_logger.error(
+                "Link creation failed for s3_key = %s, filename = %s: %s",
+                s3_key,
+                filename,
+                str(e),
+                exc_info=True,
+            )
             raise Exception("Link creation failed please try again.")
-    
+
     @retry_with_backoff(retries=3, backoff_in_seconds=1)
     def _upload_file_with_retry(self, local_file_path: str, s3_key: str) -> None:
         """Internal method to handle the actual S3 upload with retry mechanism"""
-        self.s3_client.upload_file(
-            Filename=local_file_path,
-            Bucket=self.bucket_name,
-            Key=s3_key
-        )
+        self.s3_client.upload_file(Filename=local_file_path, Bucket=self.bucket_name, Key=s3_key)
 
     def upload_file(self, local_file_path: str, s3_key: str = None) -> str:
         """
@@ -157,7 +167,7 @@ class S3Controls():
         # :param local_file_path: str - Path to the local file
         # :param s3_key: str - Optional custom S3 key/path. If not provided, uses filename
         # :return: str - The S3 path of the uploaded file
-        # """
+        #"""
         try:
             if not os.path.exists(local_file_path):
                 raise FileNotFoundError(f"Local file not found: {local_file_path}")
@@ -172,23 +182,24 @@ class S3Controls():
             return s3_path
 
         except Exception as e:
-            s3_logger.error(f"Failed to upload file {local_file_path} after all retries", exc_info=True)
-            raise Exception(f"Upload failed after all retries: {str(e)}")
+            s3_logger.error(
+                f"Failed to upload file {local_file_path} after all retries", exc_info=True
+            )
+            raise Exception(f"Upload failed after all retries: {e!s}")
 
     @retry_with_backoff(retries=3, backoff_in_seconds=1)
-    def _upload_content_with_retry(self, content: bytes, s3_key: str, content_type: str = "text/markdown") -> None:
+    def _upload_content_with_retry(
+        self, content: bytes, s3_key: str, content_type: str = "text/markdown"
+    ) -> None:
         """Internal method to upload bytes/content directly to S3 with retry."""
         self.s3_client.put_object(
-            Bucket=self.bucket_name,
-            Key=s3_key,
-            Body=content,
-            ContentType=content_type
+            Bucket=self.bucket_name, Key=s3_key, Body=content, ContentType=content_type
         )
 
     def upload_content(self, content: str, s3_key: str, content_type: str = "text/markdown") -> str:
         """
         Upload string content directly to S3 without writing a local file.
-        
+
         :param content: str - The string content to upload
         :param s3_key: str - S3 key/path for the uploaded content
         :param content_type: str - MIME type (default: text/markdown)
@@ -201,14 +212,16 @@ class S3Controls():
             s3_logger.info(f"Successfully uploaded content to {s3_path}")
             return s3_path
         except Exception as e:
-            s3_logger.error(f"Failed to upload content to {s3_key} after all retries", exc_info=True)
-            raise Exception(f"Content upload failed after all retries: {str(e)}")
+            s3_logger.error(
+                f"Failed to upload content to {s3_key} after all retries", exc_info=True
+            )
+            raise Exception(f"Content upload failed after all retries: {e!s}")
 
     @retry_with_backoff(retries=3, backoff_in_seconds=1)
     def _download_file_with_retry(self, s3_key: str) -> bytes:
         """Internal method to handle the actual S3 download with retry mechanism"""
         response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
-        return response['Body'].read()
+        return response["Body"].read()
 
     def download_file(self, s3_key: str) -> bytes:
         """
@@ -221,17 +234,18 @@ class S3Controls():
                 raise FileNotFoundError(f"File not found in S3: {s3_key}")
 
             file_content = self._download_file_with_retry(s3_key)
-            
+
             s3_path = f"s3://{self.bucket_name}/{s3_key}"
             s3_logger.info(f"Successfully downloaded file from {s3_path}")
             return file_content
 
         except Exception as e:
             s3_logger.error(f"Failed to download file {s3_key} after all retries", exc_info=True)
-            raise Exception(f"Download failed after all retries: {str(e)}")
+            raise Exception(f"Download failed after all retries: {e!s}")
 
-PRESIGNED_URL_EXPIRY = 86400       # 24 hours
-PRESIGNED_URL_CACHE_TTL = 82800    # 23 hours (slightly less than URL expiry)
+
+PRESIGNED_URL_EXPIRY = 86400  # 24 hours
+PRESIGNED_URL_CACHE_TTL = 82800  # 23 hours (slightly less than URL expiry)
 
 
 def extract_s3_key(s3_uri: str) -> str | None:
@@ -242,14 +256,14 @@ def extract_s3_key(s3_uri: str) -> str | None:
         parts = s3_uri.replace("s3://", "").split("/", 1)
         return parts[1] if len(parts) > 1 else None
     if S3_REPORTS_BASE_PATH and S3_REPORTS_BASE_PATH in s3_uri:
-        return s3_uri[s3_uri.find(S3_REPORTS_BASE_PATH):]
+        return s3_uri[s3_uri.find(S3_REPORTS_BASE_PATH) :]
     return None
 
 
 async def get_or_create_presigned_url(
     s3_uri: str,
     redis_client,
-    s3_instance: "S3Controls | None" = None,
+    s3_instance: S3Controls | None = None,
 ) -> str | None:
     """Return a cached presigned URL for the S3 URI, generating one on cache miss.
 
@@ -271,6 +285,7 @@ async def get_or_create_presigned_url(
         s3_instance = get_s3_instance()
 
     from fastapi.concurrency import run_in_threadpool
+
     presigned_url = await run_in_threadpool(
         s3_instance.generate_presigned_url_fast,
         s3_key=s3_key,
@@ -310,6 +325,7 @@ async def replace_visualization_uris_in_reports(reports: list[dict], redis_clien
         return reports
 
     import asyncio
+
     urls = await asyncio.gather(
         *(get_or_create_presigned_url(uri, redis_client, s3_instance) for _, _, uri in tasks)
     )
@@ -334,7 +350,7 @@ async def replace_visualization_uris_in_card(card: dict, redis_client) -> dict:
     tasks: list[tuple] = []
 
     def _collect(tables_list: list | None):
-        for table in (tables_list or []):
+        for table in tables_list or []:
             viz = table.get("visualization", "")
             if viz and isinstance(viz, str) and viz.startswith("s3://"):
                 tasks.append((table, "visualization", viz))
@@ -352,6 +368,7 @@ async def replace_visualization_uris_in_card(card: dict, redis_client) -> dict:
         return card
 
     import asyncio
+
     urls = await asyncio.gather(
         *(get_or_create_presigned_url(uri, redis_client, s3_instance) for _, _, uri in tasks)
     )
@@ -363,24 +380,31 @@ async def replace_visualization_uris_in_card(card: dict, redis_client) -> dict:
 
 
 @lru_cache(maxsize=1)
-def get_s3_instance(aws_key_id = S3_ACCESS_KEY_ID, bucket_name = S3_BUCKET_NAME, aws_secret_key = S3_SECRET_ACCESS_KEY, aws_region = S3_REGION_NAME) -> S3Controls:
+def get_s3_instance(
+    aws_key_id=S3_ACCESS_KEY_ID,
+    bucket_name=S3_BUCKET_NAME,
+    aws_secret_key=S3_SECRET_ACCESS_KEY,
+    aws_region=S3_REGION_NAME,
+) -> S3Controls:
     # s3_logger.info(f"aws_key_id: {aws_key_id}")
     # s3_logger.info(f"bucket_name: {bucket_name}")
     # s3_logger.info(f"aws_secret_key: {aws_secret_key}")
     # s3_logger.info(f"aws_region: {aws_region}")
     S3Instance = S3Controls(
-        aws_key_id = aws_key_id,
-        bucket_name = bucket_name,
-        aws_secret_key = aws_secret_key,
-        aws_region = aws_region
+        aws_key_id=aws_key_id,
+        bucket_name=bucket_name,
+        aws_secret_key=aws_secret_key,
+        aws_region=aws_region,
     )
-    
+
     return S3Instance
 
-S3_boto3_client = boto3.client('s3',
+
+S3_boto3_client = boto3.client(
+    "s3",
     aws_access_key_id=S3_ACCESS_KEY_ID,
     aws_secret_access_key=S3_SECRET_ACCESS_KEY,
-    region_name=S3_REGION_NAME
+    region_name=S3_REGION_NAME,
 )
 
 
@@ -401,14 +425,14 @@ def _slugify_for_s3(value: str, max_length: int = 80) -> str:
 def download_file_from_s3_to_local(s3_path: list[str], local_file_path: str) -> str:
     """
     Download a file from S3 to local file path.
-    
+
     Args:
         s3_path: S3 path in format s3://bucket/key
         local_file_path: Local file path where file will be saved
-    
+
     Returns:
         str: The local file path where the file was saved
-    
+
     Raises:
         ValueError: If S3 path format is invalid
         Exception: If download fails
@@ -416,33 +440,42 @@ def download_file_from_s3_to_local(s3_path: list[str], local_file_path: str) -> 
     try:
         if not s3_path.startswith("s3://"):
             raise ValueError("S3 path must start with s3://")
-        
+
         # Parse bucket and key from S3 path
         s3_path_cleaned = s3_path.replace("s3://", "")
         bucket_name, object_key = s3_path_cleaned.split("/", 1)
-        
+
         s3_logger.info(f"Downloading file from S3: bucket={bucket_name}, key={object_key}")
-        
+
         # Download file from S3
         response = S3_boto3_client.get_object(Bucket=bucket_name, Key=object_key)
-        file_bytes = response['Body'].read()
-        
+        file_bytes = response["Body"].read()
+
         # Write to local file
-        with open(local_file_path, 'wb') as f:
+        with open(local_file_path, "wb") as f:
             f.write(file_bytes)
-        
+
         s3_logger.info(f"Successfully downloaded file from S3 to: {local_file_path}")
         return local_file_path
-        
+
     except Exception as e:
-        s3_logger.error(f"Failed to download file from S3: {str(e)}")
-        raise Exception(f"Error downloading file from S3: {str(e)}")
+        s3_logger.error(f"Failed to download file from S3: {e!s}")
+        raise Exception(f"Error downloading file from S3: {e!s}")
 
 
-def build_report_s3_prefix(*, user_id: str, user_name: str, chat_id: str, chat_title: str, report_id: str, version: int = 1, when: datetime | None = None) -> str:
+def build_report_s3_prefix(
+    *,
+    user_id: str,
+    user_name: str,
+    chat_id: str,
+    chat_title: str,
+    report_id: str,
+    version: int = 1,
+    when: datetime | None = None,
+) -> str:
     """Build base S3 folder for a given report instance with version support:
     {BASE}/YYYY/MM/DD/{user_id}_{user_name}/{chat_id}_{chat_title}/report_{report_id}/v{version}
-    
+
     Args:
         user_id: User ID
         user_name: User name (will be slugified)
@@ -451,11 +484,11 @@ def build_report_s3_prefix(*, user_id: str, user_name: str, chat_id: str, chat_t
         report_id: Report ID
         version: Report version number (default: 1)
         when: Timestamp for date folder (default: current UTC time)
-    
+
     Returns:
         S3 prefix path including version folder
     """
-    when = when or datetime.now(timezone.utc)
+    when = when or datetime.now(UTC)
     chat_id = (chat_id or "").strip()
     title_slug = _slugify_for_s3(chat_title)
     user_slug = _slugify_for_s3(user_name)
@@ -472,13 +505,13 @@ def upload_initial_markdown_to_s3(
     chat_title: str,
     report_id: str,
     version: int = 0,
-    when: datetime | None = None
+    when: datetime | None = None,
 ) -> str:
     """
     Upload the initial markdown content to S3 for Ask Caspr.
-    
+
     Path: {S3_REPORTS_BASE_PATH}/{date_path}/{user_id}_{user_slug}/{chat_id}_{title_slug}/report_{report_id}/{title_slug_30}_initial_v{version}.md
-    
+
     Args:
         md_content: The markdown string to upload
         user_id: User ID
@@ -488,11 +521,11 @@ def upload_initial_markdown_to_s3(
         report_id: Report ID
         version: Version number for the filename suffix (default: 0)
         when: Timestamp for date folder (default: current UTC time)
-    
+
     Returns:
         Full S3 path (s3://bucket/key) of the uploaded file
     """
-    when = when or datetime.now(timezone.utc)
+    when = when or datetime.now(UTC)
     chat_id = (chat_id or "").strip()
     title_slug = _slugify_for_s3(chat_title)
     user_slug = _slugify_for_s3(user_name)

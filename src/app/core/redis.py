@@ -1,19 +1,23 @@
 """redis_utils.py: Utility functions for Redis operations"""
-from functools import lru_cache
+
 import json
+from datetime import datetime
+from functools import lru_cache
+
 import redis.asyncio as aioredis
-from datetime import datetime, timezone
+
+from app.core.constants import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT, REDIS_TTL
 from app.core.logging import setup_logging
-from app.core.constants import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_TTL, REDIS_PASSWORD
 
 logger = setup_logging(__file__)
 
+
 class RedisManager:
     """Redis manager for chat operations"""
-    
+
     def __init__(self, host=None, port=None, db=None, decode_responses=True):
         """Initialize Redis connection
-        
+
         Args:
             host: Redis host
             port: Redis port
@@ -24,11 +28,11 @@ class RedisManager:
         redis_host = host or REDIS_HOST
         redis_port = port or REDIS_PORT
         redis_db = db if db is not None else REDIS_DB
-        
+
         # Strip http:// or https:// prefix if present (Redis doesn't use HTTP protocol)
         if redis_host:
             redis_host = redis_host.replace("http://", "").replace("https://", "")
-        
+
         redis_kwargs = {
             "host": redis_host,
             "port": redis_port,
@@ -40,25 +44,27 @@ class RedisManager:
 
         self.redis_client = aioredis.Redis(**redis_kwargs)
         logger.info(f"Redis manager initialized with host: {redis_host}, port: {redis_port}")
-    
+
     async def create_chat(self, chat_data, ttl=REDIS_TTL):
         """Create a new chat in Redis
 
         Args:
             chat_data: Chat data to store
-            
+
         Returns:
             dict: Response with success status
         """
-        logger.info(f"Creating chat with ID: {chat_data.get('chat_id')}, title: {chat_data.get('chat_title')}, message_count: {len(chat_data.get('chat_messages'))}")
-        
+        logger.info(
+            f"Creating chat with ID: {chat_data.get('chat_id')}, title: {chat_data.get('chat_title')}, message_count: {len(chat_data.get('chat_messages'))}"
+        )
+
         required_fields = [
-            'chat_id',
-            'user_id',
-            'chat_title',
-            'chat_messages',
-            'created_at',
-            'updated_at'
+            "chat_id",
+            "user_id",
+            "chat_title",
+            "chat_messages",
+            "created_at",
+            "updated_at",
         ]
 
         for field in required_fields:
@@ -71,10 +77,9 @@ class RedisManager:
                 logger.error(f"Chat with ID: {chat_data.get('chat_id')} already exists")
                 return {"success": False, "error": "Chat already exists"}
 
-
-            chat_data['created_at'] = chat_data['created_at'].isoformat()
-            chat_data['updated_at'] = chat_data['updated_at'].isoformat()
-            chat_data['chat_messages'] = json.dumps(chat_data.get('chat_messages', []))
+            chat_data["created_at"] = chat_data["created_at"].isoformat()
+            chat_data["updated_at"] = chat_data["updated_at"].isoformat()
+            chat_data["chat_messages"] = json.dumps(chat_data.get("chat_messages", []))
 
             await self.redis_client.hset(f"temp_chat:{chat_data.get('chat_id')}", mapping=chat_data)
             logger.info(f"Chat created successfully with ID: {chat_data.get('chat_id')}")
@@ -89,10 +94,10 @@ class RedisManager:
 
     async def get_chat(self, chat_id, ttl=REDIS_TTL):
         """Get chat data by ID
-        
+
         Args:
             chat_id: Chat ID to retrieve
-            
+
         Returns:
             dict: Chat data or error response
         """
@@ -107,46 +112,47 @@ class RedisManager:
             if not exists:
                 logger.error(f"Chat with ID: {chat_id} not found")
                 return {"success": False, "error": "Chat not found"}
-            
+
             chat_data = await self.redis_client.hgetall(f"temp_chat:{chat_id}")
-        
+
             if not chat_data:
                 logger.error(f"Chat with ID: {chat_id} not found")
                 return {"success": False, "error": "Chat not found"}
-            
+
             # Reset TTL on access to keep active chats alive
             await self.redis_client.expire(f"temp_chat:{chat_id}", ttl)
-            chat_data['chat_messages'] = json.loads(chat_data.get('chat_messages', []))
-            chat_data['created_at'] = datetime.fromisoformat(chat_data['created_at']) if chat_data['created_at'] else ""
-            chat_data['updated_at'] = datetime.fromisoformat(chat_data['updated_at']) if chat_data['updated_at'] else ""
-                
-            # Return the full chat data
-            logger.info(f"Chat with ID: {chat_id} found in redis with {len(chat_data['chat_messages']) if chat_data.get('chat_messages') else 0} messages")
-            return {"success": True,"chat_data": chat_data}
+            chat_data["chat_messages"] = json.loads(chat_data.get("chat_messages", []))
+            chat_data["created_at"] = (
+                datetime.fromisoformat(chat_data["created_at"]) if chat_data["created_at"] else ""
+            )
+            chat_data["updated_at"] = (
+                datetime.fromisoformat(chat_data["updated_at"]) if chat_data["updated_at"] else ""
+            )
 
-        
+            # Return the full chat data
+            logger.info(
+                f"Chat with ID: {chat_id} found in redis with {len(chat_data['chat_messages']) if chat_data.get('chat_messages') else 0} messages"
+            )
+            return {"success": True, "chat_data": chat_data}
+
         except Exception as e:
-            logger.error(f"Failed to get chat with ID: {chat_id}: {str(e)}", exc_info=True)
+            logger.error(f"Failed to get chat with ID: {chat_id}: {e!s}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def update_chat(self, chat_data, ttl=REDIS_TTL):
         """Update chat fields
-        
+
         Args:
             chat_id: Chat ID to update
             chat_messages: New chat messages
             updated_at: Last update timestamp
-            
+
         Returns:
             dict: Response with success status
         """
         logger.info(f"Updating chat with ID: {chat_data.get('chat_id')}")
 
-        required_fields = [
-            'chat_id',
-            'chat_messages',
-            'updated_at'
-        ]
+        required_fields = ["chat_id", "chat_messages", "updated_at"]
 
         for field in required_fields:
             if field not in chat_data:
@@ -154,31 +160,35 @@ class RedisManager:
                 return {"success": False, "error": f"Missing required field: {field}"}
 
         try:
-
             # Check if chat exists
             exists = await self.redis_client.exists(f"temp_chat:{chat_data.get('chat_id')}")
             if not exists:
                 logger.error(f"Chat with ID: {chat_data.get('chat_id')} not found")
                 return {"success": False, "error": "Chat not found"}
-        
+
             # Prepare update data
             update_data = {
-                'updated_at': chat_data.get('updated_at').isoformat(),
-                'chat_messages': json.dumps(chat_data.get('chat_messages'))
+                "updated_at": chat_data.get("updated_at").isoformat(),
+                "chat_messages": json.dumps(chat_data.get("chat_messages")),
             }
-        
-            await self.redis_client.hset(f"temp_chat:{chat_data.get('chat_id')}", mapping=update_data)
+
+            await self.redis_client.hset(
+                f"temp_chat:{chat_data.get('chat_id')}", mapping=update_data
+            )
             logger.info(f"Chat with ID: {chat_data.get('chat_id')} updated successfully")
 
             # Reset TTL on update
             await self.redis_client.expire(f"temp_chat:{chat_data.get('chat_id')}", ttl)
 
             return {"success": True, "message": "Chat updated successfully"}
-        
+
         except Exception as e:
-            logger.error(f"Failed to update chat with ID: {chat_data.get('chat_id')}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Failed to update chat with ID: {chat_data.get('chat_id')}: {e!s}",
+                exc_info=True,
+            )
             return {"success": False, "error": str(e)}
-        
+
     # async def get_user_chats(self, user_id, ttl=REDIS_TTL):
     #     """Return a list of full chat hash records for the given user_id.
 
@@ -222,11 +232,10 @@ class RedisManager:
     #     except Exception as e:
     #         logger.error(f"Failed to get chats for user_id={user_id}: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-        
-        
+
     async def check_chat_exists(self, chat_id, ttl=REDIS_TTL):
         """Check if a chat exists in Redis
-        
+
         Args:
             chat_id: Chat ID to check
         """
@@ -235,26 +244,26 @@ class RedisManager:
         try:
             if not chat_id:
                 logger.error("Missing required chat_id field")
-                return {"success": False, "error": "Missing required fields"}   
-                
+                return {"success": False, "error": "Missing required fields"}
+
             exists = await self.redis_client.exists(f"temp_chat:{chat_id}")
             if not exists:
                 logger.warning(f"Chat with ID: {chat_id} not found in redis")
                 return {"success": True, "exists": False}
-            
+
             await self.redis_client.expire(f"temp_chat:{chat_id}", ttl)
-            return {"success": True, "exists": True}    
-        
+            return {"success": True, "exists": True}
+
         except Exception as e:
-            logger.error(f"Failed to check if chat with ID: {chat_id} exists: {str(e)}", exc_info=True)
+            logger.error(f"Failed to check if chat with ID: {chat_id} exists: {e!s}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def delete_chat(self, chat_id):
         """Delete a chat
-        
+
         Args:
             chat_id: Chat ID to delete
-            
+
         Returns:
             dict: Response with success status
         """
@@ -264,24 +273,23 @@ class RedisManager:
             if not chat_id:
                 logger.error("Missing required chat_id field")
                 return {"success": False, "error": "Missing required fields"}
-            
+
             exists = await self.redis_client.exists(f"temp_chat:{chat_id}")
             if not exists:
                 logger.error(f"Chat with ID: {chat_id} not found in redis")
                 return {"success": False, "error": "Chat not found in redis"}
-            
+
             await self.redis_client.delete(f"temp_chat:{chat_id}")
             logger.info(f"Chat with ID: {chat_id} deleted successfully")
             return {"success": True, "message": "Chat deleted successfully"}
-        
+
         except Exception as e:
-            logger.error(f"Failed to delete chat with ID: {chat_id}: {str(e)}", exc_info=True)
+            logger.error(f"Failed to delete chat with ID: {chat_id}: {e!s}", exc_info=True)
             return {"success": False, "error": str(e)}
-        
 
     # async def update_user_in_chat(self, chat_id, user_id, ttl=REDIS_TTL):
     #     """Update the user_id in the chat
-        
+
     #     Args:
     #         chat_id: Chat ID to update
     #         user_id: User ID to update
@@ -292,23 +300,23 @@ class RedisManager:
     #         if not chat_id or not user_id:
     #             logger.error("Missing required chat_id or user_id field")
     #             return {"success": False, "error": "Missing required fields"}
-            
+
     #         await self.redis_client.hset(f'chat:{chat_id}', mapping={'user_id': user_id})
     #         await self.redis_client.expire(f'chat:{chat_id}', ttl)
     #         logger.info(f"User with ID: {user_id} updated in chat with ID: {chat_id}")
     #         return {"success": True, "message": "User updated in chat successfully"}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to update user in chat with ID: {chat_id} to user_id: {user_id}: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
 
     # async def create_user(self, user_data, ttl=REDIS_TTL):
     #     """Create a new user in Redis
-        
+
     #     Args:
     #         user_data: User data to store
     #         ttl: Time to live for the user data
-            
+
     #     Returns:
     #         dict: Response with success status
     #     """
@@ -317,14 +325,14 @@ class RedisManager:
     #     if not user_data:
     #         logger.error("Missing required user_data field")
     #         return {"success": False, "error": "Missing required fields"}
-        
+
     #     required_fields = [
     #         'user_id',
-    #         'email',              
-    #         'phone', 
+    #         'email',
+    #         'phone',
     #         'created_at',
     #         'user_name',
-    #         'phone_country_code', 
+    #         'phone_country_code',
     #         'password_hash',
     #         'is_google_verified'
     #     ]
@@ -338,94 +346,94 @@ class RedisManager:
     #         if await self.redis_client.exists(f"user:{user_data.get('user_id')}"):
     #             logger.error(f"User with ID: {user_data.get('user_id')} already exists")
     #             return {"success": False, "error": "User already exists"}
-            
+
     #         user_data['is_google_verified'] = int(user_data.get('is_google_verified', 0))
     #         user_data['created_at'] = user_data['created_at'].isoformat() if user_data['created_at'] else datetime.now(timezone.utc).isoformat()
-            
+
     #         cache_key = f"user:{user_data.get('user_id')}"
     #         await self.redis_client.hset(cache_key, mapping=user_data)
     #         await self.redis_client.expire(cache_key, ttl)
     #         logger.info(f"User with ID: {user_data.get('user_id')} created successfully")
 
     #         return {"success": True, "message": "User created successfully"}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to create user with ID: {user_data.get('user_id')}: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-        
+
     # async def check_user_exists(self, user_id, ttl=REDIS_TTL):
     #     """Check if a user exists in Redis
-        
+
     #     Args:
     #         user_id: User ID to check
     #         ttl: Time to live for the user data
-            
+
     #     Returns:
     #         dict: Response with success status
     #     """
     #     logger.info(f"Checking if user with ID: {user_id} exists")
-        
+
     #     try:
     #         if not user_id:
     #             logger.error("Missing required user_id field")
     #             return {"success": False, "error": "Missing required fields"}
-            
+
     #         exists = await self.redis_client.exists(f"user:{user_id}")
     #         if not exists:
     #             logger.warning(f"User with ID: {user_id} not found in redis")
     #             return {"success": True, "exists": False}
-            
+
     #         await self.redis_client.expire(f"user:{user_id}", ttl)
     #         logger.info(f"User with ID: {user_id} found in redis")
-            
+
     #         return {"success": True, "exists": True}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to check if user with ID: {user_id} exists: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-        
+
     # async def get_user(self, user_id, ttl=REDIS_TTL):
     #     """Get user data by ID
-        
+
     #     Args:
     #         user_id: User ID to retrieve
     #         ttl: Time to live for the user data
-            
+
     #     Returns:
     #         dict: User data or error response
     #     """
     #     logger.info(f"Getting user with ID: {user_id}")
-        
+
     #     try:
     #         if not user_id:
     #             logger.error("Missing required user_id field")
     #             return {"success": False, "error": "Missing required fields"}
-            
+
     #         exists = await self.redis_client.exists(f"user:{user_id}")
     #         if not exists:
     #             logger.error(f"User with ID: {user_id} not found")
-    #             return {"success": False, "error": "User not found"}            
-            
+    #             return {"success": False, "error": "User not found"}
+
     #         user_data = await self.redis_client.hgetall(f"user:{user_id}")
     #         user_data['created_at'] = datetime.fromisoformat(user_data.get('created_at'))
     #         user_data['is_google_verified'] = bool(user_data.get('is_google_verified', 0))
-            
+
     #         if not user_data:
     #             logger.error(f"User with ID: {user_id} not found")
     #             return {"success": False, "error": "User not found"}
-            
+
     #         await self.redis_client.expire(f"user:{user_id}", ttl)
     #         return {"success": True, "user_data": user_data}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to get user with ID: {user_id}: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-        
-    #TODO: Add update_user: for forgot password updated
+
+    # TODO: Add update_user: for forgot password updated
 
     # async def insert_report(self, report_data, ttl=REDIS_TTL):
     #     """Insert a report into Redis
-        
+
     #     Args:
     #         report_data: Report data to store
     #         ttl: Time to live for the report data
@@ -439,12 +447,12 @@ class RedisManager:
     #         'source_documents',
     #         's3_uri'
     #     ]
-            
+
     #     for field in required_fields:
     #         if field not in report_data:
     #             logger.error(f"Missing required field: {field}")
     #             return {"success": False, "error": f"Missing required field: {field}"}
-            
+
     #     try:
 
     #         exists = await self.redis_client.exists(f"report:{report_data.get('report_id')}")
@@ -460,14 +468,14 @@ class RedisManager:
     #         await self.redis_client.expire(cache_key, ttl)
 
     #         return {"success": True, "message": "Report created successfully"}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to insert report with ID: {report_data.get('report_id')}: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-        
+
     # async def check_report_exists(self, report_id):
     #     """Check if a report exists in Redis
-        
+
     #     Args:
     #         report_id: Report ID to check
     #     """
@@ -477,18 +485,17 @@ class RedisManager:
     #         if not report_id:
     #             logger.error("Missing required report_id field")
     #             return {"success": False, "error": "Missing required fields"}
-            
+
     #         exists = await self.redis_client.exists(f"report:{report_id}")
     #         if not exists:
     #             logger.warning(f"Report with ID: {report_id} not found in redis")
     #             return {"success": True, "exists": False}
-            
+
     #         return {"success": True, "exists": True}
-        
+
     #     except Exception as e:
     #         logger.error(f"Failed to check if report with ID: {report_id} exists: {str(e)}", exc_info=True)
     #         return {"success": False, "error": str(e)}
-
 
     # async def get_chat_report(self, chat_id, ttl=REDIS_TTL):
     #     """Get all reports for a given chat_id across Redis hashes.
@@ -538,7 +545,7 @@ class RedisManager:
 
     #             if cursor == 0:
     #                 break
-        
+
     #         logger.info(f"Found {len(found_reports) if found_reports else 0} reports for chat_id: {chat_id}")
     #         return {"success": True, "reports": found_reports}
 
@@ -547,14 +554,11 @@ class RedisManager:
     #         return {"success": False, "error": str(e)}
 
 
-
-
-        
 @lru_cache(maxsize=1)
 def get_redis_instance(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB):
     """Get a singleton instance of RedisManager"""
     try:
         return RedisManager(host=host, port=port, db=db)
     except Exception as e:
-        logger.error(f"Failed to get Redis instance: {str(e)}", exc_info=True)
+        logger.error(f"Failed to get Redis instance: {e!s}", exc_info=True)
         raise e

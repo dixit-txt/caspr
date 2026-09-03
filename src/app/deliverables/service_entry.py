@@ -3,7 +3,7 @@
 The real report_util (MD -> HTML -> PDF, Playwright render, cost tracking)
 now lives in report-render-service. This module exists only so that
 `api.py`'s existing
-`from src.core.report_util.entry_point import process_report_cards, generate_report_output`
+`from app.deliverables.service_entry import process_report_cards, generate_report_output`
 keeps working unchanged. `generate_report_output` reproduces the original
 async signature exactly and forwards the call over HTTP to
 report-render-service's `POST /internal/render/report-output`.
@@ -15,15 +15,16 @@ directly from api.py, so there is no call site here that needs it. It is
 re-exported as a stub that raises, so an import succeeds but a stray call
 fails loudly instead of silently doing nothing.
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
-from src.config.constants import REPORT_RENDER_SERVICE_BASE_URL
-from src.config.log_helper import setup_logging
-from src.core.common.internal_auth import internal_headers
+from app.core.constants import REPORT_RENDER_SERVICE_BASE_URL
+from app.core.logging import setup_logging
+from app.internal.dependencies import internal_headers
 
 logger = setup_logging(__name__)
 
@@ -43,9 +44,9 @@ async def generate_report_output(
     chat_id: str = "",
     chat_title: str = "",
     version: int = 1,
-    existing_poster_url: Optional[str] = None,
+    existing_poster_url: str | None = None,
     report_type: str = "study",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     payload = {
         "report_cards": report_cards,
         "table_id_map": table_id_map,

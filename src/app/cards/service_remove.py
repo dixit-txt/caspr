@@ -1,7 +1,4 @@
-import json
-import os
-import shutil
-from src.config.log_helper import setup_logging
+from app.core.logging import setup_logging
 
 logger = setup_logging(__file__)
 
@@ -19,12 +16,13 @@ or
 
 """
 
+
 def remove_card(cards_for_db, fe_json_for_delete):
 
     if "id" in fe_json_for_delete and fe_json_for_delete["subsection"] is None:
         id = fe_json_for_delete["id"]
         for idx, card in enumerate(cards_for_db):
-            if card['section'][0]['id'] == id:
+            if card["section"][0]["id"] == id:
                 cards_for_db.pop(idx)
                 return cards_for_db
 
@@ -36,23 +34,27 @@ def remove_card(cards_for_db, fe_json_for_delete):
                     cards_for_db[idx]["sub_sections"].pop(sub_idx)
                     return cards_for_db
 
+
 def extract_toc(cards_for_db):
     try:
         table_of_contents = ""
-        for idx,section in enumerate(cards_for_db[4:]):
-            section_name = section['section'][0]['name'].lstrip('#').strip()
+        for idx, section in enumerate(cards_for_db[4:]):
+            section_name = section["section"][0]["name"].lstrip("#").strip()
             modified_section_name = section_name.replace(" ", "-").strip()
-            table_of_contents += f"[{idx+1}. {section_name}](#{idx+1}.-{modified_section_name})\n"
-            for sub_idx,sub_section in enumerate(section['sub_sections']):
-                sub_section_name = sub_section['name'].lstrip('#').strip()
-                sub_section_name = sub_section_name.lstrip('- ').strip()
-                modified_sub_section_name = sub_section_name.lstrip('- ').strip()
+            table_of_contents += (
+                f"[{idx + 1}. {section_name}](#{idx + 1}.-{modified_section_name})\n"
+            )
+            for sub_idx, sub_section in enumerate(section["sub_sections"]):
+                sub_section_name = sub_section["name"].lstrip("#").strip()
+                sub_section_name = sub_section_name.lstrip("- ").strip()
+                modified_sub_section_name = sub_section_name.lstrip("- ").strip()
                 modified_sub_section_name = modified_sub_section_name.replace(" ", "-")
-                table_of_contents += f"[{idx+1}.{sub_idx+1}. {sub_section_name}](#{idx+1}.{sub_idx+1}.-{modified_sub_section_name})\n"
+                table_of_contents += f"[{idx + 1}.{sub_idx + 1}. {sub_section_name}](#{idx + 1}.{sub_idx + 1}.-{modified_sub_section_name})\n"
         return table_of_contents
     except Exception as e:
         logger.error(f"Error extracting and toc: {e}")
         return ""
+
 
 def extract_toc_after_delete(cards_for_db, fe_json_for_delete):
     cards_for_db = remove_card(cards_for_db, fe_json_for_delete)

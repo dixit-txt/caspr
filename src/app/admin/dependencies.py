@@ -1,10 +1,11 @@
 """admin_auth.py: Guard for CEO/cofounder dashboard APIs."""
+
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 
-from src.core.auth.token_auth import get_current_active_user
-from src.db.database import User
-from src.db.db_utils import async_session_scope
+from app.auth.token import get_current_active_user
+from app.core.db import async_session_scope
+from app.models import User
 
 ALLOWED_DASHBOARD_ROLES = frozenset({"ceo", "cofounder", "admin"})
 

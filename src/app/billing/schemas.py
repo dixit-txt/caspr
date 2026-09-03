@@ -1,5 +1,5 @@
 """subscription.py: Subscription and request-related schemas"""
-from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -20,8 +20,8 @@ class SubscribeResponse(BaseModel):
 class RequestRequest(BaseModel):
     name: str
     email: EmailStr
-    website: Optional[str] = None
-    description: Optional[str] = None
+    website: str | None = None
+    description: str | None = None
 
 
 class RequestResponse(BaseModel):
@@ -33,7 +33,7 @@ class BookCallRequest(BaseModel):
     name: str
     email: EmailStr
     phone: PhoneNumberModel
-    brief: Optional[str] = None
+    brief: str | None = None
 
 
 class BookCallResponse(BaseModel):

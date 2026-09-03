@@ -12,24 +12,18 @@ import. Importing this module guarantees every mapper is registered.
 complete metadata.
 """
 
+from app.admin.models import (  # noqa: F401
+    CostTracker,
+    WebSearchCitation,
+    WebSearchEvent,
+    WebSearchRawResponse,
+)
 from app.auth.models import (  # noqa: F401
     User,
 )
-from app.onboarding.models import (  # noqa: F401
-    ResearchInterest,
-    University,
-    UserResearchInterest,
-    UserRole,
-)
-from app.chats.models import (  # noqa: F401
-    AskCasprChat,
-    Message,
-)
-from app.reports.models import (  # noqa: F401
-    Publish,
-    Report,
-    ReportVersion,
-    ReportVersionCard,
+from app.billing.models import (  # noqa: F401
+    Subscription,
+    SubscriptionInterval,
 )
 from app.cards.models import (  # noqa: F401
     Card,
@@ -37,22 +31,9 @@ from app.cards.models import (  # noqa: F401
     RefinementHistory,
     Table,
 )
-from app.leads.models import (  # noqa: F401
-    CallBooking,
-    Request,
-    Subscriber,
-)
-from app.wallet.models import (  # noqa: F401
-    TokenBatch,
-    TokenTransaction,
-    Wallet,
-)
-from app.billing.models import (  # noqa: F401
-    Subscription,
-    SubscriptionInterval,
-)
-from app.referrals.models import (  # noqa: F401
-    Referral,
+from app.chats.models import (  # noqa: F401
+    AskCasprChat,
+    Message,
 )
 from app.internal.models import (  # noqa: F401
     ChatFile,
@@ -62,9 +43,28 @@ from app.internal.models import (  # noqa: F401
     UserVectorStore,
     VectorStoreFile,
 )
-from app.admin.models import (  # noqa: F401
-    CostTracker,
-    WebSearchCitation,
-    WebSearchEvent,
-    WebSearchRawResponse,
+from app.leads.models import (  # noqa: F401
+    CallBooking,
+    Request,
+    Subscriber,
+)
+from app.onboarding.models import (  # noqa: F401
+    ResearchInterest,
+    University,
+    UserResearchInterest,
+    UserRole,
+)
+from app.referrals.models import (  # noqa: F401
+    Referral,
+)
+from app.reports.models import (  # noqa: F401
+    Publish,
+    Report,
+    ReportVersion,
+    ReportVersionCard,
+)
+from app.wallet.models import (  # noqa: F401
+    TokenBatch,
+    TokenTransaction,
+    Wallet,
 )

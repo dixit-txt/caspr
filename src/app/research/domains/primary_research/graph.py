@@ -17,16 +17,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Optional
 
-from langchain_core.messages import AIMessage
+from google import genai
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, StateGraph
 
-from google import genai
-
 from app.core.constants import (
-    SYNC_OPENAI_CLIENT, PRIMARY_RESEARCH_MODEL, GEMINI_API_KEY, GEMINI_PRIMARY_RESEARCH_MODEL,
+    GEMINI_API_KEY,
+    GEMINI_PRIMARY_RESEARCH_MODEL,
+    PRIMARY_RESEARCH_MODEL,
+    SYNC_OPENAI_CLIENT,
 )
 from app.core.logging import setup_logging
 from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
@@ -50,6 +50,7 @@ _CFG = PRIMARY_RESEARCH_CONFIG
 # Subgraph state (extends BaseDomainState with PR-specific fields)
 # ---------------------------------------------------------------------------
 
+
 class PrimaryResearchState(BaseDomainState, total=False):
     document_analysis: dict
 
@@ -57,6 +58,7 @@ class PrimaryResearchState(BaseDomainState, total=False):
 # ---------------------------------------------------------------------------
 # Node implementations
 # ---------------------------------------------------------------------------
+
 
 async def pr_validate_upload(state: PrimaryResearchState) -> PrimaryResearchState:
     """Gate node: ensures uploaded files or a grep session are present.
@@ -133,8 +135,11 @@ async def pr_analyze_document(state: PrimaryResearchState) -> PrimaryResearchSta
             # directly so the workers read the doc and return the JSON answer.
             _uid = state.get("user_id") or state.get("user_name")
             grep_result = await asyncio.to_thread(
-                grep_ask_pdfs, grep_session, analysis_prompt,
-                chat_id=state.get("chat_id"), user_id=_uid,
+                grep_ask_pdfs,
+                grep_session,
+                analysis_prompt,
+                chat_id=state.get("chat_id"),
+                user_id=_uid,
             )
             raw_text = grep_result.get("answer", "{}")
         else:
@@ -163,7 +168,9 @@ async def pr_analyze_document(state: PrimaryResearchState) -> PrimaryResearchSta
                     tool_choice=tool_choice if tools else None,
                 )
                 save_raw_llm_response(
-                    response, PRIMARY_RESEARCH_MODEL, "Analyzing an uploaded primary research document",
+                    response,
+                    PRIMARY_RESEARCH_MODEL,
+                    "Analyzing an uploaded primary research document",
                     state.get("chat_id"),
                     user_id=state.get("user_id") or state.get("user_name"),
                 )
@@ -191,7 +198,8 @@ async def pr_analyze_document(state: PrimaryResearchState) -> PrimaryResearchSta
                     },
                 )
                 save_raw_llm_response(
-                    interaction, GEMINI_PRIMARY_RESEARCH_MODEL,
+                    interaction,
+                    GEMINI_PRIMARY_RESEARCH_MODEL,
                     "Analyzing an uploaded primary research document (Gemini backup)",
                     state.get("chat_id"),
                     user_id=state.get("user_id") or state.get("user_name"),
@@ -297,22 +305,20 @@ async def pr_generate_cards_and_synthesize(state: PrimaryResearchState) -> Prima
     )
 
     _user_id = state.get("user_id") or state.get("user_name", "")
-    cards_for_db, cumulative_summary, all_citations, table_map = (
-        await generate_section_cards(
-            descriptive_report_layout=state["descriptive_report_layout"],
-            user_instructions=state.get("user_instructions", ""),
-            upload_file_config=state.get("upload_file_config"),
-            report_length=state.get("report_length", "overview"),
-            web_search=False,
-            user_name=state.get("user_name", ""),
-            chat_id=state.get("chat_id", ""),
-            user_id=_user_id,
-            domain_config=_CFG,
-            event_writer=event_writer,
-            s3_instance=state.get("s3_instance"),
-            grep_session=state.get("grep_session"),
-            report_type=state.get("report_type", "study"),
-        )
+    cards_for_db, cumulative_summary, all_citations, table_map = await generate_section_cards(
+        descriptive_report_layout=state["descriptive_report_layout"],
+        user_instructions=state.get("user_instructions", ""),
+        upload_file_config=state.get("upload_file_config"),
+        report_length=state.get("report_length", "overview"),
+        web_search=False,
+        user_name=state.get("user_name", ""),
+        chat_id=state.get("chat_id", ""),
+        user_id=_user_id,
+        domain_config=_CFG,
+        event_writer=event_writer,
+        s3_instance=state.get("s3_instance"),
+        grep_session=state.get("grep_session"),
+        report_type=state.get("report_type", "study"),
     )
 
     ai_message = await synthesize_report(
@@ -348,6 +354,7 @@ async def pr_generate_cards_and_synthesize(state: PrimaryResearchState) -> Prima
 # Routing function for the validation gate
 # ---------------------------------------------------------------------------
 
+
 def _route_after_validation(state: PrimaryResearchState) -> str:
     if state.get("error"):
         logger.info(
@@ -367,13 +374,16 @@ def _route_after_validation(state: PrimaryResearchState) -> str:
 # Build the compiled subgraph
 # ---------------------------------------------------------------------------
 
+
 def build_primary_research_subgraph():
     """Construct and compile the Primary Research LangGraph subgraph.
 
     Returns a compiled ``StateGraph`` that the main graph can add as a node
     via ``graph_builder.add_node("pr_subgraph", subgraph)``.
     """
-    logger.info("[primary_research] Building Primary Research subgraph: validate -> analyze -> drl -> cards+synthesize")
+    logger.info(
+        "[primary_research] Building Primary Research subgraph: validate -> analyze -> drl -> cards+synthesize"
+    )
     builder = StateGraph(PrimaryResearchState)
 
     builder.add_node("pr_validate_upload", pr_validate_upload)

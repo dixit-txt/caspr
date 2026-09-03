@@ -25,7 +25,6 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
 from datetime import datetime
@@ -67,6 +66,7 @@ def _build_system_message() -> SystemMessage:
         )
     )
 
+
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
@@ -86,10 +86,7 @@ class DDToolsAgent:
         user_id: str | None = None,
     ):
         self.model_name = model_name
-        self.mcp_server_url = (
-            mcp_server_url
-            or os.environ.get("DD_MCP_SERVER_URL", "")
-        )
+        self.mcp_server_url = mcp_server_url or os.environ.get("DD_MCP_SERVER_URL", "")
         if not self.mcp_server_url:
             raise ValueError(
                 "MCP server URL is required. Pass mcp_server_url or set "
@@ -151,6 +148,7 @@ class DDToolsAgent:
                         return text
                     logger.warning(f"[MCP RESULT] tool={tool_name} | empty response")
                     return "No result returned"
+
                 return tool_func
 
             tool_kwargs = {
@@ -173,8 +171,11 @@ class DDToolsAgent:
             messages = state["messages"]
             response = llm_with_tools.invoke([_build_system_message()] + messages)
             save_raw_llm_response(
-                response, self.model_name, "Running due diligence research analysis",
-                self.chat_id, user_id=self.user_id,
+                response,
+                self.model_name,
+                "Running due diligence research analysis",
+                self.chat_id,
+                user_id=self.user_id,
             )
             return {"messages": [response]}
 
@@ -280,4 +281,3 @@ async def run_agent(
 #             await agent.close()
 
 #     asyncio.run(main())
-

@@ -16,10 +16,11 @@ e.g. generated text/images/citations) to keep the returned payload small.
 
 Failures are logged and never raised to the caller.
 """
+
 import asyncio
 import datetime
 import threading
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.logging import setup_logging
 
@@ -38,7 +39,7 @@ _USAGE_KEYS = {
 # Per-image cost (USD) for image-generation models, since these calls don't
 # carry token-based usage_metadata. Keyed by the exact model id/name string
 # passed to save_raw_llm_response. Add entries here as pricing is confirmed.
-_IMAGE_GEN_COST_PER_IMAGE_USD: Dict[str, float] = {
+_IMAGE_GEN_COST_PER_IMAGE_USD: dict[str, float] = {
     "imagen-4.0-generate-001": 0.0400,
 }
 
@@ -48,7 +49,7 @@ _IMAGE_GEN_COST_PER_IMAGE_USD: Dict[str, float] = {
 _IMAGE_LIST_FIELDS = ("generated_images", "data")
 
 
-def _count_generated_images(raw_data: Any) -> Optional[int]:
+def _count_generated_images(raw_data: Any) -> int | None:
     """Best-effort count of images returned by an image-generation response."""
     if not isinstance(raw_data, dict):
         return None
@@ -59,7 +60,9 @@ def _count_generated_images(raw_data: Any) -> Optional[int]:
     return None
 
 
-def _extract_input_output_tokens(usage_data: Dict[str, Any]) -> "tuple[Optional[int], Optional[int]]":
+def _extract_input_output_tokens(
+    usage_data: dict[str, Any],
+) -> tuple[int | None, int | None]:
     """Best-effort normalization of input/output token counts across SDK usage shapes.
 
     Different providers name these fields differently:
@@ -101,7 +104,7 @@ def _extract_input_output_tokens(usage_data: Dict[str, Any]) -> "tuple[Optional[
     return None, None
 
 
-def _collect_usage_fields(obj: Any, found: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _collect_usage_fields(obj: Any, found: dict[str, Any] | None = None) -> dict[str, Any]:
     """Recursively walk `obj` and collect any dict values found under usage-related keys."""
     if found is None:
         found = {}
@@ -124,7 +127,7 @@ def _collect_usage_fields(obj: Any, found: Optional[Dict[str, Any]] = None) -> D
     return found
 
 
-def _resolve_usage_metadata_blob(usage_data: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_usage_metadata_blob(usage_data: dict[str, Any]) -> dict[str, Any]:
     """Prefer the nested ``usage_metadata`` block when present; else store the whole usage dict."""
     nested = usage_data.get("usage_metadata")
     if isinstance(nested, dict) and nested:
@@ -136,27 +139,27 @@ def _resolve_usage_metadata_blob(usage_data: Dict[str, Any]) -> Dict[str, Any]:
     return usage_data
 
 
-def _estimated_cost_from_payload(payload: Dict[str, Any]) -> Optional[float]:
+def _estimated_cost_from_payload(payload: dict[str, Any]) -> float | None:
     cost_block = payload.get("cost") if isinstance(payload.get("cost"), dict) else None
     usage_data = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
     if isinstance(cost_block, dict) and cost_block.get("estimated_cost_usd") is not None:
         try:
             return float(cost_block["estimated_cost_usd"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     if usage_data.get("estimated_cost_usd") is not None:
         try:
             return float(usage_data["estimated_cost_usd"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     return None
 
 
 def _persist_kwargs_from_payload(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     timestamp: datetime.datetime,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build kwargs for ``_persist_cost_tracker_row`` from an extracted payload."""
     meta = payload.get("metadata") or {}
     usage_data = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
@@ -182,19 +185,21 @@ async def _persist_cost_tracker_row(
     timestamp: datetime.datetime,
     model_name: str,
     context: str,
-    functionality: Optional[str] = None,
-    agent_name: Optional[str],
-    chat_id: Optional[str],
-    user_id: Optional[str],
-    usage_metadata: Dict[str, Any],
-    input_tokens: Optional[int],
-    output_tokens: Optional[int],
-    estimated_cost: Optional[float] = None,
-    cost_details: Optional[Dict[str, Any]] = None,
+    functionality: str | None = None,
+    agent_name: str | None,
+    chat_id: str | None,
+    user_id: str | None,
+    usage_metadata: dict[str, Any],
+    input_tokens: int | None,
+    output_tokens: int | None,
+    estimated_cost: float | None = None,
+    cost_details: dict[str, Any] | None = None,
 ) -> None:
     """Insert into ``costtracker`` using the shared app async engine/session."""
     try:
-        from src.db.async_db_functions import insert_cost_tracker
+        from app.admin.repository_costs import (
+            insert_cost_tracker,
+        )
         from app.core.db import async_session_scope
 
         async with async_session_scope() as session:
@@ -234,8 +239,10 @@ async def _persist_cost_tracker_row_isolated(**kwargs: Any) -> None:
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
 
+    from app.admin.repository_costs import (
+        insert_cost_tracker,
+    )
     from app.core.constants import DB_CONNECTION_LINK
-    from src.db.async_db_functions import insert_cost_tracker
 
     engine = create_async_engine(
         DB_CONNECTION_LINK,
@@ -247,24 +254,27 @@ async def _persist_cost_tracker_row_isolated(**kwargs: Any) -> None:
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with factory() as session:
-            result = await insert_cost_tracker(session=session, **{
-                k: kwargs[k]
-                for k in (
-                    "timestamp",
-                    "model_name",
-                    "context",
-                    "functionality",
-                    "agent_name",
-                    "chat_id",
-                    "user_id",
-                    "usage_metadata",
-                    "input_tokens",
-                    "output_tokens",
-                    "estimated_cost",
-                    "cost_details",
-                )
-                if k in kwargs
-            })
+            result = await insert_cost_tracker(
+                session=session,
+                **{
+                    k: kwargs[k]
+                    for k in (
+                        "timestamp",
+                        "model_name",
+                        "context",
+                        "functionality",
+                        "agent_name",
+                        "chat_id",
+                        "user_id",
+                        "usage_metadata",
+                        "input_tokens",
+                        "output_tokens",
+                        "estimated_cost",
+                        "cost_details",
+                    )
+                    if k in kwargs
+                },
+            )
             if not result.get("success"):
                 logger.error(
                     f"costtracker isolated insert failed for context={kwargs.get('context')}, "
@@ -284,12 +294,12 @@ def _save_raw_llm_response_impl(
     response: Any,
     model_name: str,
     context: str,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    functionality: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    chat_id: str | None = None,
+    user_id: str | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
+    functionality: str | None = None,
+) -> dict[str, Any] | None:
     """Extract usage/token/cost stats. Does not touch the DB. Never raises."""
     try:
         agent_name = agent_name or context
@@ -319,7 +329,7 @@ def _save_raw_llm_response_impl(
 
         input_tokens, output_tokens = _extract_input_output_tokens(usage_data)
 
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        now_utc = datetime.datetime.now(datetime.UTC)
         # Keep legacy string format in the returned payload until callers migrate;
         # DB column stores a proper timezone-aware datetime.
         timestamp_str = now_utc.strftime("%Y%m%d_%H%M%S_%f")
@@ -352,7 +362,9 @@ def _save_raw_llm_response_impl(
 
         return payload
     except Exception as e:
-        logger.error(f"Failed to extract raw LLM response usage for context={context}, model={model_name}: {e}")
+        logger.error(
+            f"Failed to extract raw LLM response usage for context={context}, model={model_name}: {e}"
+        )
         return None
 
 
@@ -360,11 +372,11 @@ async def _save_raw_llm_response_async(
     response: Any,
     model_name: str,
     context: str,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    functionality: Optional[str] = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
+    functionality: str | None = None,
 ) -> None:
     """Extract off the event loop, then persist on the *current* loop (app-safe)."""
     try:
@@ -382,7 +394,7 @@ async def _save_raw_llm_response_async(
         if not payload:
             return
 
-        ts = payload.pop("_db_timestamp", None) or datetime.datetime.now(datetime.timezone.utc)
+        ts = payload.pop("_db_timestamp", None) or datetime.datetime.now(datetime.UTC)
         await _persist_cost_tracker_row(**_persist_kwargs_from_payload(payload, timestamp=ts))
     except Exception as e:
         logger.error(
@@ -396,11 +408,11 @@ def save_raw_llm_response(
     response: Any,
     model_name: str,
     context: str,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    functionality: Optional[str] = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
+    functionality: str | None = None,
 ) -> None:
     """Fire-and-forget extraction of LLM usage/token stats + ``costtracker`` insert.
 
@@ -457,9 +469,7 @@ def save_raw_llm_response(
             payload = _save_raw_llm_response_impl(**kwargs)
             if not payload:
                 return
-            ts = payload.pop("_db_timestamp", None) or datetime.datetime.now(
-                datetime.timezone.utc
-            )
+            ts = payload.pop("_db_timestamp", None) or datetime.datetime.now(datetime.UTC)
             persist_kwargs = _persist_kwargs_from_payload(payload, timestamp=ts)
             asyncio.run(_persist_cost_tracker_row_isolated(**persist_kwargs))
         except Exception as e:
@@ -490,9 +500,9 @@ def strip_json_code_fence(text: str) -> str:
         return text
     stripped = text.strip()
     if stripped.startswith("```"):
-        stripped = stripped[len("```"):]
+        stripped = stripped[len("```") :]
         if stripped.lower().startswith("json"):
-            stripped = stripped[len("json"):]
+            stripped = stripped[len("json") :]
         stripped = stripped.lstrip("\n")
         if stripped.endswith("```"):
             stripped = stripped[: -len("```")]

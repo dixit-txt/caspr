@@ -5,7 +5,7 @@ Callers persist analytics in the background with:
     asyncio.create_task(log_web_search_event(...))
 
 directly from async code (``src/core/model.py`` and
-``src/core/domains/planner.py``). This module intentionally has no scheduler,
+``app.research.domains/planner.py``). This module intentionally has no scheduler,
 task registry, or queue -- ``log_web_search_event`` is the only entry point,
 and it never raises back to the caller.
 """
@@ -14,14 +14,15 @@ from __future__ import annotations
 
 import datetime
 import json
-from typing import Any, Optional, TypedDict
+from typing import Any, TypedDict
 from urllib.parse import SplitResult, parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
-from src.config.log_helper import setup_logging
-from src.db.database import WebSearchCitation, WebSearchEvent, WebSearchRawResponse
-from src.db.db_utils import async_session_scope
 from uuid_utils import uuid7
+
+from app.core.db import async_session_scope
+from app.core.logging import setup_logging
+from app.models import WebSearchCitation, WebSearchEvent, WebSearchRawResponse
 
 logger = setup_logging(__name__)
 
@@ -45,16 +46,16 @@ LinkInput = str | SearchLink
 _TRACKING_QUERY_PARAMETERS = {"gclid", "fbclid", "msclkid"}
 
 
-def _valid_uuid(value: Optional[str]) -> Optional[str]:
+def _valid_uuid(value: str | None) -> str | None:
     if not value:
         return None
     try:
         return str(UUID(str(value)))
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 
-def _normalize_url(raw_url: Any) -> Optional[str]:
+def _normalize_url(raw_url: Any) -> str | None:
     """Return a deterministic HTTP(S) URL, excluding fragments."""
     if not isinstance(raw_url, str):
         return None
@@ -85,10 +86,7 @@ def _normalize_url(raw_url: Any) -> Optional[str]:
                 parsed.query,
                 keep_blank_values=True,
             )
-            if not (
-                key.lower().startswith("utm_")
-                or key.lower() in _TRACKING_QUERY_PARAMETERS
-            )
+            if not (key.lower().startswith("utm_") or key.lower() in _TRACKING_QUERY_PARAMETERS)
         ]
         normalized = SplitResult(
             scheme=parsed.scheme.lower(),
@@ -98,21 +96,21 @@ def _normalize_url(raw_url: Any) -> Optional[str]:
             fragment="",
         )
         return urlunsplit(normalized)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
-def _extract_domain(url: str) -> Optional[str]:
+def _extract_domain(url: str) -> str | None:
     """Return a hostname without a leading ``www.``."""
     try:
         hostname = urlsplit(url).hostname or ""
         return hostname.removeprefix("www.") or None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
 def _normalize_links(
-    links: Optional[list[LinkInput]],
+    links: list[LinkInput] | None,
     *,
     cited: bool,
 ) -> list[dict[str, Any]]:
@@ -182,14 +180,14 @@ def _normalize_links(
 
 
 def _prepare_raw_response(
-    raw_response: Optional[dict[str, Any]],
-) -> tuple[Optional[dict[str, Any]], Optional[int], bool]:
+    raw_response: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, int | None, bool]:
     """Return ``(stored_payload, size_bytes, is_truncated)`` for the raw_response column."""
     if not raw_response:
         return None, None, False
     try:
         size_bytes = len(json.dumps(raw_response, default=str).encode("utf-8"))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None, None, False
 
     if size_bytes <= _MAX_RAW_RESPONSE_BYTES:
@@ -207,14 +205,14 @@ def _prepare_raw_response(
     return truncated_payload, size_bytes, True
 
 
-def _coerce_response_created_at(value: Any) -> Optional[datetime.datetime]:
+def _coerce_response_created_at(value: Any) -> datetime.datetime | None:
     """Convert OpenAI's epoch-seconds ``created_at`` to a UTC datetime."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
         try:
-            return datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
-        except (OverflowError, OSError, ValueError):
+            return datetime.datetime.fromtimestamp(value, tz=datetime.UTC)
+        except OverflowError, OSError, ValueError:
             return None
     return None
 
@@ -222,29 +220,29 @@ def _coerce_response_created_at(value: Any) -> Optional[datetime.datetime]:
 async def log_web_search_event(
     trigger_source: str,
     user_query: str,
-    raw_citations: Optional[list[LinkInput]] = None,
-    model_used: Optional[str] = None,
-    user_id: Optional[str] = None,
-    chat_id: Optional[str] = None,
-    report_id: Optional[str] = None,
-    section_name: Optional[str] = None,
+    raw_citations: list[LinkInput] | None = None,
+    model_used: str | None = None,
+    user_id: str | None = None,
+    chat_id: str | None = None,
+    report_id: str | None = None,
+    section_name: str | None = None,
     *,
-    candidate_links: Optional[list[LinkInput]] = None,
-    cited_links: Optional[list[LinkInput]] = None,
-    operation_id: Optional[str] = None,
+    candidate_links: list[LinkInput] | None = None,
+    cited_links: list[LinkInput] | None = None,
+    operation_id: str | None = None,
     attempt_number: int = 0,
-    provider: Optional[str] = None,
-    provider_response_id: Optional[str] = None,
-    provider_queries: Optional[list[str]] = None,
-    status: Optional[str] = "succeeded",
-    error_type: Optional[str] = None,
-    duration_ms: Optional[int] = None,
+    provider: str | None = None,
+    provider_response_id: str | None = None,
+    provider_queries: list[str] | None = None,
+    status: str | None = "succeeded",
+    error_type: str | None = None,
+    duration_ms: int | None = None,
     search_call_count: int = 0,
-    usage_metadata: Optional[dict[str, Any]] = None,
-    card_id: Optional[str] = None,
-    previous_response_id: Optional[str] = None,
-    response_created_at: Optional[Any] = None,
-    raw_response: Optional[dict[str, Any]] = None,
+    usage_metadata: dict[str, Any] | None = None,
+    card_id: str | None = None,
+    previous_response_id: str | None = None,
+    response_created_at: Any | None = None,
+    raw_response: dict[str, Any] | None = None,
 ) -> None:
     """Persist one attempt and all valid candidate/used URL occurrences.
 

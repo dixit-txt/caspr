@@ -1,10 +1,11 @@
 """referral.py: Referral-related schemas"""
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class ReferralInfoResponse(BaseModel):
     """Response for getting referral information."""
+
     success: bool
     referral_code: str = Field(..., description="User's unique referral code")
     total_referrals: int = Field(..., description="Total successful referrals")
@@ -14,6 +15,6 @@ class ReferralInfoResponse(BaseModel):
 
 class ReferralErrorResponse(BaseModel):
     """Error response for referral operations."""
+
     success: bool = False
     error: str
-

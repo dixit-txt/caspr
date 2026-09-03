@@ -5,8 +5,8 @@ migration. Function bodies are unchanged; only the import block was retargeted
 at the new module paths.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,18 +23,18 @@ async def insert_cost_tracker(
     *,
     timestamp: datetime,
     model_name: str,
-    context: Optional[str] = None,
-    functionality: Optional[str] = None,
-    agent_name: Optional[str] = None,
-    chat_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    usage_metadata: Optional[Dict[str, Any]] = None,
-    input_tokens: Optional[int] = None,
-    output_tokens: Optional[int] = None,
-    estimated_cost: Optional[float] = None,
-    cost_details: Optional[Dict[str, Any]] = None,
+    context: str | None = None,
+    functionality: str | None = None,
+    agent_name: str | None = None,
+    chat_id: str | None = None,
+    user_id: str | None = None,
+    usage_metadata: dict[str, Any] | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    estimated_cost: float | None = None,
+    cost_details: dict[str, Any] | None = None,
     session: AsyncSession,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Insert one LLM cost/usage row into the ``costtracker`` table.
 
@@ -65,7 +65,7 @@ async def insert_cost_tracker(
         return {"success": False, "error": "timestamp is required"}
 
     if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=timezone.utc)
+        timestamp = timestamp.replace(tzinfo=UTC)
 
     try:
         row = CostTracker(
@@ -81,7 +81,7 @@ async def insert_cost_tracker(
             output_tokens=int(output_tokens or 0),
             estimated_cost=float(estimated_cost) if estimated_cost is not None else None,
             cost_details=cost_details,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session.add(row)
         await session.commit()
@@ -114,10 +114,10 @@ async def insert_cost_tracker(
 
     except SQLAlchemyError as e:
         await session.rollback()
-        logger.error(f"Database error inserting costtracker row: {str(e)}", exc_info=True)
-        return {"success": False, "error": f"Database error: {str(e)}"}
+        logger.error(f"Database error inserting costtracker row: {e!s}", exc_info=True)
+        return {"success": False, "error": f"Database error: {e!s}"}
 
     except Exception as e:
         await session.rollback()
-        logger.error(f"Unexpected error inserting costtracker row: {str(e)}", exc_info=True)
-        return {"success": False, "error": f"Unexpected error: {str(e)}"}
+        logger.error(f"Unexpected error inserting costtracker row: {e!s}", exc_info=True)
+        return {"success": False, "error": f"Unexpected error: {e!s}"}

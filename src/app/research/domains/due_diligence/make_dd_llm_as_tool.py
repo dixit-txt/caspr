@@ -10,8 +10,8 @@ when the OpenAI model calls the ``dd_research`` function tool at runtime.
 
 from __future__ import annotations
 
-from app.research.domains.due_diligence.llm_agent import DDToolsAgent
 from app.core.constants import DUE_DILIGENCE_MODEL
+from app.research.domains.due_diligence.llm_agent import DDToolsAgent
 
 
 async def _run_dd_query(

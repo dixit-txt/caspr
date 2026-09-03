@@ -1,4 +1,5 @@
 """error_alerter.py: Collects 500 errors via Redis and sends batched digest emails."""
+
 import asyncio
 import json
 import re
@@ -6,8 +7,8 @@ import sys
 import time
 import traceback as tb
 from contextvars import ContextVar
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi.concurrency import run_in_threadpool
 
@@ -52,10 +53,8 @@ SENSITIVE_PARAM_PATTERN = re.compile(
 #      ONLY if the filter hasn't already queued for this request (avoids
 #      duplicate digest rows for the same crash).
 # ---------------------------------------------------------------------------
-_alert_state_box: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
-    "_alert_state_box", default=None
-)
-_alert_request_meta: ContextVar[Optional[Dict[str, Any]]] = ContextVar(
+_alert_state_box: ContextVar[dict[str, Any] | None] = ContextVar("_alert_state_box", default=None)
+_alert_request_meta: ContextVar[dict[str, Any] | None] = ContextVar(
     "_alert_request_meta", default=None
 )
 
@@ -68,11 +67,11 @@ def _init_request_context() -> None:
 
 def set_alert_request_context(
     *,
-    method: Optional[str] = None,
-    path: Optional[str] = None,
-    user_id: Optional[str] = None,
-    user_email: Optional[str] = None,
-    query_params: Optional[str] = None,
+    method: str | None = None,
+    path: str | None = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
+    query_params: str | None = None,
 ) -> None:
     """Stash request/task identity for the logging filter to consume.
 
@@ -96,13 +95,13 @@ def set_alert_request_context(
         meta["query_params"] = query_params
 
 
-def get_alert_request_context() -> Dict[str, Any]:
+def get_alert_request_context() -> dict[str, Any]:
     """Return a shallow copy of the current alert meta (or an empty dict)."""
     meta = _alert_request_meta.get()
     return dict(meta) if meta else {}
 
 
-def capture_exception_for_alerter(logger_name: Optional[str] = None) -> None:
+def capture_exception_for_alerter(logger_name: str | None = None) -> None:
     """Capture the active exception and asynchronously enqueue an error event.
 
     Must be invoked from inside an ``except`` block (directly or via the
@@ -140,7 +139,7 @@ def capture_exception_for_alerter(logger_name: Optional[str] = None) -> None:
     _schedule_alert_queue(short_tb=short, logger_name=logger_name)
 
 
-def _consume_alert_traceback() -> Optional[str]:
+def _consume_alert_traceback() -> str | None:
     """Return the captured traceback string for the current request."""
     state = _alert_state_box.get()
     if not state:
@@ -154,7 +153,7 @@ def _was_alert_already_queued() -> bool:
     return bool(state and state.get("queued"))
 
 
-def _schedule_alert_queue(*, short_tb: str, logger_name: Optional[str]) -> None:
+def _schedule_alert_queue(*, short_tb: str, logger_name: str | None) -> None:
     """Queue an error entry on the running event loop without awaiting it.
 
     Called synchronously from the logging filter, so it must never raise and
@@ -239,10 +238,10 @@ class ErrorAlertManager:
         status_code: int,
         error_message: str,
         query_params: str = "",
-        user_id: Optional[str] = None,
-        user_email: Optional[str] = None,
-        exc: Optional[BaseException] = None,
-        exc_traceback: Optional[str] = None,
+        user_id: str | None = None,
+        user_email: str | None = None,
+        exc: BaseException | None = None,
+        exc_traceback: str | None = None,
     ) -> None:
         """Serialize one error event and push it to the Redis queue.
 
@@ -260,7 +259,7 @@ class ErrorAlertManager:
                 traceback_str = "".join(tb.format_exception(type(exc), exc, exc.__traceback__))
 
             entry = {
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
                 "method": method,
                 "path": path,
                 "status_code": status_code,
@@ -345,7 +344,7 @@ class ErrorAlertManager:
             logger.error("Failed to send error digest email", exc_info=True)
 
     @staticmethod
-    async def _enrich_with_user_emails(errors: List[Dict[str, Any]]) -> None:
+    async def _enrich_with_user_emails(errors: list[dict[str, Any]]) -> None:
         """Fill in ``user_email`` for entries that only have a user_id.
 
         Performs ONE batch SELECT against ``users`` for the digest, regardless
@@ -369,10 +368,11 @@ class ErrorAlertManager:
 
             # Local imports to avoid pulling DB at module load time.
             from sqlalchemy import select
-            from src.db.database import User
-            from app.core.db import async_session_scope
 
-            id_to_email: Dict[str, str] = {}
+            from app.core.db import async_session_scope
+            from app.models import User
+
+            id_to_email: dict[str, str] = {}
             async with async_session_scope() as session:
                 result = await session.execute(
                     select(User.id, User.email).where(User.id.in_(unresolved_ids))
@@ -394,9 +394,7 @@ class ErrorAlertManager:
 
     async def start_digest_loop(self) -> None:
         """Run flush_and_send_digest every ERROR_DIGEST_INTERVAL_SECONDS until cancelled."""
-        logger.info(
-            f"[ERROR_DIGEST_LOOP] Starting - interval={ERROR_DIGEST_INTERVAL_SECONDS}s"
-        )
+        logger.info(f"[ERROR_DIGEST_LOOP] Starting - interval={ERROR_DIGEST_INTERVAL_SECONDS}s")
         await self._cleanup_orphaned_processing_keys()
 
         while True:
@@ -425,10 +423,10 @@ class ErrorAlertManager:
 # Redis client at module import time (and to sidestep import cycles with
 # ``main.py``, which itself imports ``api`` which can import this module).
 # ---------------------------------------------------------------------------
-_error_alerter_singleton: Optional["ErrorAlertManager"] = None
+_error_alerter_singleton: ErrorAlertManager | None = None
 
 
-def get_error_alerter() -> "ErrorAlertManager":
+def get_error_alerter() -> ErrorAlertManager:
     """Return a process-wide ``ErrorAlertManager`` for background tasks.
 
     Safe to call from anywhere; the underlying Redis client is itself a
@@ -440,9 +438,8 @@ def get_error_alerter() -> "ErrorAlertManager":
     if _error_alerter_singleton is None:
         # Local import to avoid a circular import at module load time.
         from app.core.redis import get_redis_instance
-        _error_alerter_singleton = ErrorAlertManager(
-            redis_client=get_redis_instance().redis_client
-        )
+
+        _error_alerter_singleton = ErrorAlertManager(redis_client=get_redis_instance().redis_client)
     return _error_alerter_singleton
 
 
@@ -450,9 +447,9 @@ async def queue_background_error(
     *,
     path: str,
     error_message: str,
-    user_id: Optional[str] = None,
-    user_email: Optional[str] = None,
-    exc: Optional[BaseException] = None,
+    user_id: str | None = None,
+    user_email: str | None = None,
+    exc: BaseException | None = None,
 ) -> None:
     """Convenience wrapper for non-HTTP code paths.
 
@@ -477,11 +474,9 @@ async def queue_background_error(
         else:
             state["queued"] = True
 
-        short_tb: Optional[str] = None
+        short_tb: str | None = None
         if exc is not None:
-            short_tb = "".join(
-                tb.format_exception_only(type(exc), exc)
-            ).strip()
+            short_tb = "".join(tb.format_exception_only(type(exc), exc)).strip()
         await get_error_alerter().queue_error(
             method="BACKGROUND",
             path=path,
@@ -493,6 +488,4 @@ async def queue_background_error(
             exc_traceback=short_tb,
         )
     except Exception:
-        logger.warning(
-            "queue_background_error failed silently", exc_info=True
-        )
+        logger.warning("queue_background_error failed silently", exc_info=True)

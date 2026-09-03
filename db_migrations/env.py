@@ -1,7 +1,5 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
 
 from alembic import context
 import asyncio
@@ -63,8 +61,14 @@ def run_migrations_offline() -> None:
     with context.begin_transaction():
         context.run_migrations()
 
+
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata, compare_server_default = True, compare_type = True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_server_default=True,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

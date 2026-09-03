@@ -12,15 +12,14 @@ generate_one_pager(...))` in api.py (blocking work off the event loop).
 This shim keeps that same contract: it's a blocking `httpx` call, still
 meant to be run through `run_in_threadpool` by its caller exactly as before.
 """
-from __future__ import annotations
 
-from typing import Optional, Tuple
+from __future__ import annotations
 
 import httpx
 
 from app.core.constants import REPORT_RENDER_SERVICE_BASE_URL
 from app.core.logging import setup_logging
-from src.core.common.internal_auth import internal_headers
+from app.internal.dependencies import internal_headers
 
 logger = setup_logging(__name__)
 
@@ -28,19 +27,19 @@ _TIMEOUT = httpx.Timeout(connect=15.0, read=600.0, write=60.0, pool=15.0)
 
 
 def generate_one_pager(
-    user_id: Optional[str],
-    user_name: Optional[str],
-    report_id: Optional[str],
+    user_id: str | None,
+    user_name: str | None,
+    report_id: str | None,
     report_markdown: str,
     report_title: str,
     report_subtitle: str,
-    poster_image_url: Optional[str],
+    poster_image_url: str | None,
     report_date: str,
     chat_id: str,
     chat_title: str,
     version: int,
     report_generation_time: str,
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     payload = {
         "user_id": user_id,
         "user_name": user_name,

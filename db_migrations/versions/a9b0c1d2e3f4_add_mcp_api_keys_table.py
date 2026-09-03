@@ -9,23 +9,21 @@ with a different shape (name/revoked_at/is_active). This revision normalizes
 it to the production schema used by the API.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 
 revision: str = "a9b0c1d2e3f4"
-down_revision: Union[str, None] = "8b9c0d1e2f3a"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "8b9c0d1e2f3a"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     conn = op.get_bind()
-    exists = conn.execute(
-        sa.text("SELECT to_regclass('public.mcp_api_keys') IS NOT NULL")
-    ).scalar()
+    exists = conn.execute(sa.text("SELECT to_regclass('public.mcp_api_keys') IS NOT NULL")).scalar()
 
     if not exists:
         op.create_table(

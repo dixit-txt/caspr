@@ -9,7 +9,4 @@ report-generation side effects, not the Q&A path.
 See ask-caspr-service/README.md.
 """
 
-raise ImportError(
-    "Ask Caspr Q&A lives in ask-caspr-service now. "
-    "See ask-caspr-service/README.md."
-)
+raise ImportError("Ask Caspr Q&A lives in ask-caspr-service now. See ask-caspr-service/README.md.")

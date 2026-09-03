@@ -6,17 +6,23 @@ Separation of concerns (important):
                    balances / token transactions)
 - COST TRACKING  → costtracker only (tokens, estimated_cost, model, context)
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.observability.functionality_context import Functionality, label_for, normalize_functionality, remap_feature_label
-from src.db.database import CostTracker, Message, Report, ReportVersion, User
-from src.db.wallet_functions import get_active_subscription
+from app.models import CostTracker, Message, Report, ReportVersion, User
+from app.observability.functionality_context import (
+    Functionality,
+    label_for,
+    normalize_functionality,
+    remap_feature_label,
+)
+from app.wallet.repository import get_active_subscription
 
 
 def _functionality_bucket_expr():
@@ -35,7 +41,7 @@ def _functionality_bucket_expr():
     )
 
 
-def _parse_datetime(value: Optional[str], *, end_of_day: bool = False) -> Optional[datetime]:
+def _parse_datetime(value: str | None, *, end_of_day: bool = False) -> datetime | None:
     """Parse ISO date (YYYY-MM-DD) or datetime string into UTC-aware datetime."""
     if value is None:
         return None
@@ -56,17 +62,17 @@ def _parse_datetime(value: Optional[str], *, end_of_day: bool = False) -> Option
     except ValueError as e:
         raise ValueError(f"Invalid date/datetime: {value}") from e
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     else:
-        dt = dt.astimezone(timezone.utc)
+        dt = dt.astimezone(UTC)
     return dt
 
 
 def resolve_period(
-    range_key: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> Tuple[Optional[datetime], datetime, str]:
+    range_key: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> tuple[datetime | None, datetime, str]:
     """Resolve a flexible time window.
 
     Priority:
@@ -77,7 +83,7 @@ def resolve_period(
     Returns (start_utc|None, end_utc, label).
     ``start`` is None only for ``all`` (no lower bound).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if start_date or end_date:
         start = _parse_datetime(start_date, end_of_day=False) if start_date else None
@@ -96,13 +102,13 @@ def resolve_period(
     return parse_range(range_key or "2d")
 
 
-def parse_range(range_key: str) -> Tuple[Optional[datetime], datetime, str]:
+def parse_range(range_key: str) -> tuple[datetime | None, datetime, str]:
     """Return (start_utc|None, end_utc, normalized_key) for preset ranges.
 
     Presets: today | 2d | 7d | 30d | all
     Prefer :func:`resolve_period` when callers also accept custom dates.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     key = (range_key or "2d").strip().lower()
     if key in ("today", "1d", "day"):
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -118,14 +124,14 @@ def parse_range(range_key: str) -> Tuple[Optional[datetime], datetime, str]:
     return now - timedelta(days=2), now, "2d"
 
 
-def _cost_time_filter(start: Optional[datetime], end: datetime):
+def _cost_time_filter(start: datetime | None, end: datetime):
     clauses = [CostTracker.timestamp <= end]
     if start is not None:
         clauses.append(CostTracker.timestamp >= start)
     return and_(*clauses)
 
 
-async def get_subscription_snapshot(session: AsyncSession, user_id: str) -> Dict[str, Any]:
+async def get_subscription_snapshot(session: AsyncSession, user_id: str) -> dict[str, Any]:
     """Current plan only — tier + status. No wallet balances.
 
     ``subscriptions.user_id`` is NOT unique (payment history / pending rows).
@@ -149,10 +155,10 @@ async def get_subscription_snapshot(session: AsyncSession, user_id: str) -> Dict
 
 async def get_subscription_snapshots(
     session: AsyncSession,
-    user_ids: List[str],
-) -> Dict[str, Dict[str, Any]]:
+    user_ids: list[str],
+) -> dict[str, dict[str, Any]]:
     """Batch subscription snapshots keyed by user_id."""
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for uid in user_ids:
         if not uid or uid in out:
             continue
@@ -164,13 +170,14 @@ async def get_subscription_snapshots(
 # COST TRACKING — costtracker only
 # ---------------------------------------------------------------------------
 
+
 async def cost_summary(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    user_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    user_id: str | None = None,
+) -> dict[str, Any]:
     filters = [_cost_time_filter(start, end)]
     if user_id:
         filters.append(CostTracker.user_id == user_id)
@@ -188,14 +195,14 @@ async def cost_summary(
     # Today + all-time always useful on overview cards
     today_start = end.replace(hour=0, minute=0, second=0, microsecond=0)
     today_filters = [CostTracker.timestamp >= today_start, CostTracker.timestamp <= end]
-    all_filters: List[Any] = []
+    all_filters: list[Any] = []
     if user_id:
         today_filters.append(CostTracker.user_id == user_id)
         all_filters.append(CostTracker.user_id == user_id)
 
-    today_stmt = select(
-        func.coalesce(func.sum(CostTracker.estimated_cost), 0.0)
-    ).where(and_(*today_filters))
+    today_stmt = select(func.coalesce(func.sum(CostTracker.estimated_cost), 0.0)).where(
+        and_(*today_filters)
+    )
     all_stmt = select(func.coalesce(func.sum(CostTracker.estimated_cost), 0.0))
     if all_filters:
         all_stmt = all_stmt.where(and_(*all_filters))
@@ -218,11 +225,11 @@ async def cost_summary(
 async def cost_by_feature(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Spend breakdown by costtracker.context (+ agent_name). Raw table labels only."""
     filters = [_cost_time_filter(start, end)]
     if user_id:
@@ -261,10 +268,10 @@ async def cost_by_feature(
 async def cost_by_functionality(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    user_id: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    user_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Spend grouped by the stable, user-facing ``functionality`` bucket.
 
     This is the primary "what are we spending on?" view for non-technical
@@ -311,11 +318,11 @@ async def cost_by_functionality(
 async def cost_by_model(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    user_id: Optional[str] = None,
+    user_id: str | None = None,
     limit: int = 30,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     filters = [_cost_time_filter(start, end)]
     if user_id:
         filters.append(CostTracker.user_id == user_id)
@@ -349,10 +356,10 @@ async def cost_by_model(
 async def cost_by_user(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     filters = [_cost_time_filter(start, end)]
     stmt = (
         select(
@@ -370,36 +377,36 @@ async def cost_by_user(
     )
     rows = (await session.execute(stmt)).all()
     user_ids = [r.user_id for r in rows if r.user_id]
-    users_map: Dict[str, User] = {}
+    users_map: dict[str, User] = {}
     if user_ids:
-        urows = (
-            await session.execute(select(User).where(User.id.in_(user_ids)))
-        ).scalars().all()
+        urows = (await session.execute(select(User).where(User.id.in_(user_ids)))).scalars().all()
         users_map = {u.id: u for u in urows}
 
     out = []
     for r in rows:
         u = users_map.get(r.user_id)
-        out.append({
-            "user_id": r.user_id,
-            "email": u.email if u else None,
-            "user_name": u.user_name if u else None,
-            "spend_usd": float(r.spend or 0),
-            "input_tokens": int(r.input_tokens or 0),
-            "output_tokens": int(r.output_tokens or 0),
-            "calls": int(r.calls or 0),
-            "distinct_chats": int(r.chats or 0),
-        })
+        out.append(
+            {
+                "user_id": r.user_id,
+                "email": u.email if u else None,
+                "user_name": u.user_name if u else None,
+                "spend_usd": float(r.spend or 0),
+                "input_tokens": int(r.input_tokens or 0),
+                "output_tokens": int(r.output_tokens or 0),
+                "calls": int(r.calls or 0),
+                "distinct_chats": int(r.chats or 0),
+            }
+        )
     return out
 
 
 async def cost_timeseries(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    user_id: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    user_id: str | None = None,
+) -> list[dict[str, Any]]:
     filters = [_cost_time_filter(start, end)]
     if user_id:
         filters.append(CostTracker.user_id == user_id)
@@ -436,10 +443,10 @@ async def cost_for_chat(
     session: AsyncSession,
     *,
     chat_id: str,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
-) -> Dict[str, Any]:
-    end = end or datetime.now(timezone.utc)
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> dict[str, Any]:
+    end = end or datetime.now(UTC)
     filters = [CostTracker.chat_id == chat_id, CostTracker.timestamp <= end]
     if start is not None:
         filters.append(CostTracker.timestamp >= start)
@@ -524,6 +531,7 @@ async def cost_for_chat(
 # USER TRACKING — users / messages / reports / versions + subscription only
 # ---------------------------------------------------------------------------
 
+
 async def count_total_users(session: AsyncSession) -> int:
     """All registered users in the DB (not period-scoped)."""
     result = await session.execute(select(func.count(User.id)))
@@ -533,7 +541,7 @@ async def count_total_users(session: AsyncSession) -> int:
 async def count_active_users(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
 ) -> int:
     """Active = distinct users with a chat message OR a costtracker row in range."""
@@ -553,7 +561,7 @@ async def count_active_users(
 async def count_new_users(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
 ) -> int:
     filters = [User.created_at <= end]
@@ -568,7 +576,7 @@ async def search_users(
     *,
     q: str,
     limit: int = 20,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     q = (q or "").strip()
     if not q:
         return []
@@ -583,27 +591,29 @@ async def search_users(
     snapshots = await get_subscription_snapshots(session, [u.id for u in users])
     out = []
     for u in users:
-        out.append({
-            "user_id": u.id,
-            "email": u.email,
-            "user_name": u.user_name,
-            "created_at": u.created_at.isoformat() if u.created_at else None,
-            "subscription": snapshots.get(u.id, {"current_tier": "free", "status": None}),
-        })
+        out.append(
+            {
+                "user_id": u.id,
+                "email": u.email,
+                "user_name": u.user_name,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "subscription": snapshots.get(u.id, {"current_tier": "free", "status": None}),
+            }
+        )
     return out
 
 
 async def list_users_with_activity(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-    q: Optional[str] = None,
+    q: str | None = None,
     page: int = 1,
     page_size: int = 25,
     sort: str = "spend",
     active_only: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Paginated users sorted by usage, with optional name/email search.
 
     Metrics (spend/chats/reports) are scoped to ``start``–``end``.
@@ -645,9 +655,7 @@ async def list_users_with_activity(
         pattern = f"%{q}%"
         user_filters.append(or_(User.email.ilike(pattern), User.user_name.ilike(pattern)))
     if active_only:
-        user_filters.append(
-            or_(spend_subq.c.user_id.isnot(None), chat_subq.c.user_id.isnot(None))
-        )
+        user_filters.append(or_(spend_subq.c.user_id.isnot(None), chat_subq.c.user_id.isnot(None)))
 
     from_joins = (
         select(User.id)
@@ -686,12 +694,10 @@ async def list_users_with_activity(
     else:
         order = spend_col.desc(), chats_col.desc(), User.email.asc()
 
-    rows = (
-        await session.execute(base.order_by(*order).offset(offset).limit(page_size))
-    ).all()
+    rows = (await session.execute(base.order_by(*order).offset(offset).limit(page_size))).all()
 
     page_ids = [u.id for u, *_rest in rows]
-    report_rows: Dict[str, int] = {}
+    report_rows: dict[str, int] = {}
     if page_ids:
         report_stmt = (
             select(Message.user_id, func.count(Report.id).label("reports"))
@@ -700,27 +706,28 @@ async def list_users_with_activity(
             .group_by(Message.user_id)
         )
         report_rows = {
-            r.user_id: int(r.reports or 0)
-            for r in (await session.execute(report_stmt)).all()
+            r.user_id: int(r.reports or 0) for r in (await session.execute(report_stmt)).all()
         }
 
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     snapshots = await get_subscription_snapshots(session, page_ids)
     for u, spend, input_tokens, output_tokens, calls, chats, last_active in rows:
-        items.append({
-            "user_id": u.id,
-            "email": u.email,
-            "user_name": u.user_name,
-            "created_at": u.created_at.isoformat() if u.created_at else None,
-            "last_active": last_active.isoformat() if last_active else None,
-            "chats": int(chats or 0),
-            "reports": report_rows.get(u.id, 0),
-            "spend_usd": float(spend or 0),
-            "input_tokens": int(input_tokens or 0),
-            "output_tokens": int(output_tokens or 0),
-            "calls": int(calls or 0),
-            "subscription": snapshots.get(u.id, {"current_tier": "free", "status": None}),
-        })
+        items.append(
+            {
+                "user_id": u.id,
+                "email": u.email,
+                "user_name": u.user_name,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "last_active": last_active.isoformat() if last_active else None,
+                "chats": int(chats or 0),
+                "reports": report_rows.get(u.id, 0),
+                "spend_usd": float(spend or 0),
+                "input_tokens": int(input_tokens or 0),
+                "output_tokens": int(output_tokens or 0),
+                "calls": int(calls or 0),
+                "subscription": snapshots.get(u.id, {"current_tier": "free", "status": None}),
+            }
+        )
 
     return {
         "users": items,
@@ -734,12 +741,12 @@ async def list_users_with_activity(
 async def active_users_report(
     session: AsyncSession,
     *,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
     page: int = 1,
     page_size: int = 25,
     include_list: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """How many users were active in a custom period (day / days / month / …).
 
     Active = distinct users with a chat message OR a costtracker row in range.
@@ -785,7 +792,7 @@ async def active_users_report(
         if r.day is not None
     ]
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "active_users": active_count,
         "new_users": new_users,
         "daily": daily,
@@ -810,9 +817,9 @@ async def user_summary(
     session: AsyncSession,
     *,
     user_id: str,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -820,9 +827,7 @@ async def user_summary(
 
     sub = await get_subscription_snapshot(session, user_id)
     costs = await cost_summary(session, start=start, end=end, user_id=user_id)
-    functionalities = await cost_by_functionality(
-        session, start=start, end=end, user_id=user_id
-    )
+    functionalities = await cost_by_functionality(session, start=start, end=end, user_id=user_id)
     features = await cost_by_feature(session, start=start, end=end, user_id=user_id, limit=20)
     models = await cost_by_model(session, start=start, end=end, user_id=user_id, limit=15)
 
@@ -842,9 +847,7 @@ async def user_summary(
         or 0
     )
     last_active = (
-        await session.execute(
-            select(func.max(Message.updated_at)).where(and_(*chat_filters))
-        )
+        await session.execute(select(func.max(Message.updated_at)).where(and_(*chat_filters)))
     ).scalar()
 
     return {
@@ -867,10 +870,10 @@ async def user_chats(
     session: AsyncSession,
     *,
     user_id: str,
-    start: Optional[datetime],
+    start: datetime | None,
     end: datetime,
     limit: int = 50,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     filters = [Message.user_id == user_id, Message.is_deleted.is_(False)]
     # Include chats touched in range OR with cost in range — still list all if range=all
     if start is not None:
@@ -878,36 +881,40 @@ async def user_chats(
     filters.append(Message.updated_at <= end)
 
     msgs = (
-        await session.execute(
-            select(Message)
-            .where(and_(*filters))
-            .order_by(Message.updated_at.desc())
-            .limit(limit)
+        (
+            await session.execute(
+                select(Message)
+                .where(and_(*filters))
+                .order_by(Message.updated_at.desc())
+                .limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     out = []
     for m in msgs:
         cost = await cost_for_chat(session, chat_id=m.id, start=start, end=end)
         report_count = int(
             (
-                await session.execute(
-                    select(func.count(Report.id)).where(Report.chat_id == m.id)
-                )
+                await session.execute(select(func.count(Report.id)).where(Report.chat_id == m.id))
             ).scalar()
             or 0
         )
-        out.append({
-            "chat_id": m.id,
-            "chat_title": m.chat_title or "Untitled chat",
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-            "updated_at": m.updated_at.isoformat() if m.updated_at else None,
-            "reports_count": report_count,
-            "spend_usd": cost["spend_usd"],
-            "input_tokens": cost["input_tokens"],
-            "output_tokens": cost["output_tokens"],
-            "calls": cost["calls"],
-        })
+        out.append(
+            {
+                "chat_id": m.id,
+                "chat_title": m.chat_title or "Untitled chat",
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+                "reports_count": report_count,
+                "spend_usd": cost["spend_usd"],
+                "input_tokens": cost["input_tokens"],
+                "output_tokens": cost["output_tokens"],
+                "calls": cost["calls"],
+            }
+        )
     return out
 
 
@@ -915,37 +922,39 @@ async def chat_reports(
     session: AsyncSession,
     *,
     chat_id: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     reports = (
-        await session.execute(
-            select(Report)
-            .where(Report.chat_id == chat_id)
-            .order_by(Report.created_at.desc())
+        (
+            await session.execute(
+                select(Report).where(Report.chat_id == chat_id).order_by(Report.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     out = []
     for r in reports:
         version_count = int(
             (
                 await session.execute(
-                    select(func.count(ReportVersion.id)).where(
-                        ReportVersion.report_id == r.id
-                    )
+                    select(func.count(ReportVersion.id)).where(ReportVersion.report_id == r.id)
                 )
             ).scalar()
             or 0
         )
-        out.append({
-            "report_id": r.id,
-            "title": r.title or "Untitled report",
-            "status": r.status,
-            "current_version": r.current_version,
-            "versions_count": version_count,
-            "report_type": r.report_type,
-            "domain_name": r.domain_name,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "last_activity_at": r.last_activity_at.isoformat() if r.last_activity_at else None,
-        })
+        out.append(
+            {
+                "report_id": r.id,
+                "title": r.title or "Untitled report",
+                "status": r.status,
+                "current_version": r.current_version,
+                "versions_count": version_count,
+                "report_type": r.report_type,
+                "domain_name": r.domain_name,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "last_activity_at": r.last_activity_at.isoformat() if r.last_activity_at else None,
+            }
+        )
     return out
 
 
@@ -953,14 +962,18 @@ async def report_versions(
     session: AsyncSession,
     *,
     report_id: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     versions = (
-        await session.execute(
-            select(ReportVersion)
-            .where(ReportVersion.report_id == report_id)
-            .order_by(ReportVersion.version.desc())
+        (
+            await session.execute(
+                select(ReportVersion)
+                .where(ReportVersion.report_id == report_id)
+                .order_by(ReportVersion.version.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         {
             "version_id": v.id,

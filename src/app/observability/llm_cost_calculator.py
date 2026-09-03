@@ -9,12 +9,13 @@ Typical use from the logger::
     cost = estimate_cost_from_payload(payload)
     payload["cost"] = cost
 """
+
 from __future__ import annotations
 
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from app.core.logging import setup_logging
 
@@ -27,7 +28,7 @@ _TOKENS_PER_PRICING_UNIT = 1_000_000
 
 
 @lru_cache(maxsize=1)
-def load_pricing() -> Dict[str, Any]:
+def load_pricing() -> dict[str, Any]:
     """Load and cache ``llm_model_pricing.json``."""
     with open(_PRICING_PATH, encoding="utf-8") as f:
         return json.load(f)
@@ -41,7 +42,7 @@ def clear_pricing_cache() -> None:
 def _as_nonneg_int(value: Any) -> int:
     try:
         n = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
     return max(n, 0)
 
@@ -49,17 +50,17 @@ def _as_nonneg_int(value: Any) -> int:
 def _as_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
-def _tokens_cost(tokens: int, price_per_1m: Optional[float]) -> float:
+def _tokens_cost(tokens: int, price_per_1m: float | None) -> float:
     if not tokens or price_per_1m is None:
         return 0.0
     return (tokens / _TOKENS_PER_PRICING_UNIT) * float(price_per_1m)
 
 
-def _resolve_model_pricing(model_name: str) -> Optional[Dict[str, Any]]:
+def _resolve_model_pricing(model_name: str) -> dict[str, Any] | None:
     """Look up a model entry, following ``same_as`` aliases when present."""
     models = load_pricing().get("models") or {}
     key = str(model_name or "").strip()
@@ -136,7 +137,7 @@ def _extract_num_images(usage: Any) -> int:
     return 0
 
 
-def _extract_tool_usage(usage: Any) -> Dict[str, Any]:
+def _extract_tool_usage(usage: Any) -> dict[str, Any]:
     """Return the OpenAI-style ``tool_usage`` dict from a logger usage blob."""
     if not isinstance(usage, dict):
         return {}
@@ -149,7 +150,7 @@ def _extract_tool_usage(usage: Any) -> Dict[str, Any]:
     return {}
 
 
-def _extract_sonar_context_tier(usage: Any) -> Optional[str]:
+def _extract_sonar_context_tier(usage: Any) -> str | None:
     """Map Perplexity ``search_context_size`` to pricing keys like medium_context."""
     if not isinstance(usage, dict):
         return None
@@ -168,13 +169,13 @@ def _extract_sonar_context_tier(usage: Any) -> Optional[str]:
 
 
 def _estimate_openai_tool_fees(
-    tool_usage: Dict[str, Any],
+    tool_usage: dict[str, Any],
     *,
     model_name: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Price OpenAI built-in tools from ``usage.tool_usage``."""
-    tools_cfg = ((load_pricing().get("tools") or {}).get("openai") or {})
-    breakdown: Dict[str, Any] = {}
+    tools_cfg = (load_pricing().get("tools") or {}).get("openai") or {}
+    breakdown: dict[str, Any] = {}
     total = 0.0
 
     # OpenAI still reports this as usage.tool_usage.web_search — keep reading
@@ -219,7 +220,9 @@ def _estimate_openai_tool_fees(
         in_tok = _as_nonneg_int(image_gen.get("input_tokens"))
         out_tok = _as_nonneg_int(image_gen.get("output_tokens"))
         if in_tok or out_tok:
-            img_model = (tools_cfg.get("image_gen") or {}).get("same_rates_as_model") or "gpt-image-2"
+            img_model = (tools_cfg.get("image_gen") or {}).get(
+                "same_rates_as_model"
+            ) or "gpt-image-2"
             img_cost = estimate_llm_cost(
                 model_name=str(img_model),
                 input_tokens=in_tok,
@@ -241,9 +244,9 @@ def _estimate_openai_tool_fees(
 def _pick_per_image_rate(
     cost_per_image: Any,
     *,
-    size: Optional[str] = None,
-    quality: Optional[str] = None,
-) -> Optional[float]:
+    size: str | None = None,
+    quality: str | None = None,
+) -> float | None:
     """Resolve a scalar per-image USD rate from float or size/quality maps."""
     if isinstance(cost_per_image, (int, float)):
         return float(cost_per_image)
@@ -269,16 +272,13 @@ def _pick_per_image_rate(
 
 
 def _pick_tiered_rate(
-    pricing: Dict[str, Any],
+    pricing: dict[str, Any],
     field: str,
     long_ctx: bool,
-) -> Optional[float]:
+) -> float | None:
     """Resolve a rate that may use leq/gt threshold suffixes."""
     if long_ctx:
-        return (
-            pricing.get(f"{field}_gt_threshold")
-            or pricing.get(f"{field}_gt_200k")
-        )
+        return pricing.get(f"{field}_gt_threshold") or pricing.get(f"{field}_gt_200k")
     return (
         pricing.get(f"{field}_leq_threshold")
         or pricing.get(f"{field}_leq_200k")
@@ -286,7 +286,7 @@ def _pick_tiered_rate(
     )
 
 
-def _has_tiered_token_pricing(pricing: Dict[str, Any]) -> bool:
+def _has_tiered_token_pricing(pricing: dict[str, Any]) -> bool:
     tier_keys = (
         "input_per_1m_leq_200k",
         "input_per_1m_gt_200k",
@@ -297,9 +297,9 @@ def _has_tiered_token_pricing(pricing: Dict[str, Any]) -> bool:
 
 
 def _token_rates_for_model(
-    pricing: Dict[str, Any],
+    pricing: dict[str, Any],
     input_tokens: int,
-) -> Dict[str, Optional[float]]:
+) -> dict[str, float | None]:
     """Pick input/output/cached rates, including long-context tiered models."""
     billing = pricing.get("billing")
 
@@ -315,8 +315,7 @@ def _token_rates_for_model(
     # Nano Banana / Gemini image models: text+image input, text/thinking output.
     if billing == "tokens_and_image_output":
         return {
-            "input_per_1m": pricing.get("input_text_image_per_1m")
-            or pricing.get("input_per_1m"),
+            "input_per_1m": pricing.get("input_text_image_per_1m") or pricing.get("input_per_1m"),
             "output_per_1m": pricing.get("output_text_thinking_per_1m")
             or pricing.get("output_per_1m"),
             "cached_input_per_1m": pricing.get("cached_input_per_1m"),
@@ -326,8 +325,7 @@ def _token_rates_for_model(
     if pricing.get("text_input_per_1m") is not None and pricing.get("input_per_1m") is None:
         return {
             "input_per_1m": pricing.get("text_input_per_1m"),
-            "output_per_1m": pricing.get("image_output_per_1m")
-            or pricing.get("output_per_1m"),
+            "output_per_1m": pricing.get("image_output_per_1m") or pricing.get("output_per_1m"),
             "cached_input_per_1m": pricing.get("cached_text_input_per_1m")
             or pricing.get("cached_input_per_1m"),
         }
@@ -343,15 +341,15 @@ def _token_rates_for_model(
 def estimate_llm_cost(
     *,
     model_name: str,
-    input_tokens: Optional[int] = None,
-    output_tokens: Optional[int] = None,
-    usage: Optional[Dict[str, Any]] = None,
-    num_images: Optional[int] = None,
-    image_size: Optional[str] = None,
-    image_quality: Optional[str] = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    usage: dict[str, Any] | None = None,
+    num_images: int | None = None,
+    image_size: str | None = None,
+    image_quality: str | None = None,
     sonar_context_tier: str = "medium_context",
     sonar_pro_search: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Estimate USD cost for one LLM call.
 
     Returns a dict always containing ``estimated_cost_usd`` (float|None) plus
@@ -368,10 +366,14 @@ def estimate_llm_cost(
     if detected_sonar_tier:
         sonar_context_tier = detected_sonar_tier
     tool_usage = _extract_tool_usage(usage)
-    tool_fees = _estimate_openai_tool_fees(tool_usage, model_name=model_name) if tool_usage else {
-        "tool_cost_usd": 0.0,
-        "tool_breakdown": {},
-    }
+    tool_fees = (
+        _estimate_openai_tool_fees(tool_usage, model_name=model_name)
+        if tool_usage
+        else {
+            "tool_cost_usd": 0.0,
+            "tool_breakdown": {},
+        }
+    )
 
     # Prefer an already-computed image cost from the logger.
     if usage.get("estimated_cost_usd") is not None and usage.get("num_images") is not None:
@@ -398,7 +400,7 @@ def estimate_llm_cost(
         }
 
     billing = pricing.get("billing") or "tokens"
-    breakdown: Dict[str, Any] = {
+    breakdown: dict[str, Any] = {
         "input_tokens": in_tok,
         "output_tokens": out_tok,
         "cached_input_tokens": cached_tok,
@@ -407,9 +409,7 @@ def estimate_llm_cost(
     # --- per-image billing (Imagen / DALL·E) ---
     if billing == "per_image":
         images = (
-            _as_nonneg_int(num_images)
-            if num_images is not None
-            else _extract_num_images(usage)
+            _as_nonneg_int(num_images) if num_images is not None else _extract_num_images(usage)
         )
         rate = _pick_per_image_rate(
             pricing.get("cost_per_image_usd"),
@@ -458,9 +458,7 @@ def estimate_llm_cost(
     request_fee = 0.0
     if billing == "tokens_plus_request_fee":
         fee_table_key = (
-            "pro_search_request_fee_per_1k"
-            if sonar_pro_search
-            else "request_fee_per_1k"
+            "pro_search_request_fee_per_1k" if sonar_pro_search else "request_fee_per_1k"
         )
         fee_table = pricing.get(fee_table_key) or {}
         # request_fee_per_1k is USD per 1k requests → per-request = rate / 1000
@@ -478,9 +476,7 @@ def estimate_llm_cost(
     if billing == "tokens_and_image_output" and in_tok == 0 and out_tok == 0:
         approx = pricing.get("approx_cost_per_1k_2k_image_usd")
         images = (
-            _as_nonneg_int(num_images)
-            if num_images is not None
-            else _extract_num_images(usage)
+            _as_nonneg_int(num_images) if num_images is not None else _extract_num_images(usage)
         ) or 1
         if approx is not None:
             image_addon = images * float(approx)
@@ -519,7 +515,7 @@ def estimate_llm_cost(
     }
 
 
-def estimate_cost_from_payload(payload: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
+def estimate_cost_from_payload(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     """Estimate cost from a ``save_raw_llm_response`` / logger payload dict.
 
     Expected shape::
@@ -539,11 +535,7 @@ def estimate_cost_from_payload(payload: Dict[str, Any], **kwargs: Any) -> Dict[s
         }
 
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
-    model_name = (
-        metadata.get("model_name")
-        or payload.get("model_name")
-        or ""
-    )
+    model_name = metadata.get("model_name") or payload.get("model_name") or ""
     return estimate_llm_cost(
         model_name=str(model_name),
         input_tokens=payload.get("input_tokens"),
@@ -553,7 +545,7 @@ def estimate_cost_from_payload(payload: Dict[str, Any], **kwargs: Any) -> Dict[s
     )
 
 
-def attach_cost_to_payload(payload: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
+def attach_cost_to_payload(payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     """Mutate ``payload`` in place: set ``payload["cost"]`` and mirror USD on usage.
 
     Also writes ``usage["estimated_cost_usd"]`` when a numeric estimate is available

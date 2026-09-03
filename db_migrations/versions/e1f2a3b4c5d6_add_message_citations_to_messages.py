@@ -15,7 +15,8 @@ that response. One chat can have multiple turns each with their own key.
 
 Old rows will have NULL which the API treats as no citations.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
@@ -23,10 +24,10 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e1f2a3b4c5d6'
-down_revision: Union[str, None] = 'c1d2e3f4a5b6'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "e1f2a3b4c5d6"
+down_revision: str | None = "c1d2e3f4a5b6"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,17 +38,17 @@ def upgrade() -> None:
     requiring a backfill. The application treats NULL as an empty dict.
     """
     op.add_column(
-        'messages',
+        "messages",
         sa.Column(
-            'message_citations',
+            "message_citations",
             JSONB,
             nullable=True,
             comment=(
-                'Persisted citations keyed by LangChain AIMessage id. '
+                "Persisted citations keyed by LangChain AIMessage id. "
                 'Structure: {"<ai_message_id>": ["url1", "url2", ...]}. '
-                'NULL for chats created before this migration.'
-            )
-        )
+                "NULL for chats created before this migration."
+            ),
+        ),
     )
 
     print("Migration complete: added message_citations (JSONB, nullable) to messages table")
@@ -55,5 +56,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove message_citations column from messages table."""
-    op.drop_column('messages', 'message_citations')
+    op.drop_column("messages", "message_citations")
     print("Rollback complete: removed message_citations from messages table")

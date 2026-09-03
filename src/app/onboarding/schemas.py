@@ -1,14 +1,13 @@
 """Pydantic schemas for the onboarding API."""
 
-from typing import List, Optional
 from pydantic import BaseModel, EmailStr, Field
-
 
 # -- Request schemas --
 
+
 class SaveUserRoleRequest(BaseModel):
     role_id: str
-    custom_role_text: Optional[str] = Field(
+    custom_role_text: str | None = Field(
         default=None,
         max_length=100,
         description=(
@@ -20,8 +19,8 @@ class SaveUserRoleRequest(BaseModel):
 
 
 class SaveResearchInterestsRequest(BaseModel):
-    interest_ids: List[str]
-    custom_research_text: Optional[str] = Field(
+    interest_ids: list[str]
+    custom_research_text: str | None = Field(
         default=None,
         max_length=100,
         description=(
@@ -44,12 +43,13 @@ class SaveUniversityEmailRequest(BaseModel):
 
 # -- Response schemas --
 
+
 class UserRoleItem(BaseModel):
     id: str
     name: str
     display_name: str
-    description: Optional[str] = None
-    discount_tag: Optional[str] = None
+    description: str | None = None
+    discount_tag: str | None = None
     display_order: int
 
 
@@ -57,33 +57,33 @@ class ResearchInterestItem(BaseModel):
     id: str
     name: str
     display_name: str
-    description: Optional[str] = None
+    description: str | None = None
     display_order: int
 
 
 class UserRolesResponse(BaseModel):
     success: bool
-    roles: List[UserRoleItem] = []
+    roles: list[UserRoleItem] = []
 
 
 class ResearchInterestsResponse(BaseModel):
     success: bool
-    interests: List[ResearchInterestItem] = []
+    interests: list[ResearchInterestItem] = []
 
 
 class ValidateUniversityEmailResponse(BaseModel):
     success: bool
     matched: bool = False
-    university: Optional[dict] = None
-    message: Optional[str] = None
+    university: dict | None = None
+    message: str | None = None
 
 
 class OnboardingStatusResponse(BaseModel):
     success: bool
-    onboarding: Optional[dict] = None
+    onboarding: dict | None = None
 
 
 class OnboardingStepResponse(BaseModel):
     success: bool
     message: str = ""
-    error: Optional[str] = None
+    error: str | None = None

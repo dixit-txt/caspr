@@ -12,23 +12,23 @@ All public functions accept an ``AsyncSession`` that the caller obtains via
 ``async_session_scope()``.
 """
 
-from uuid_utils import uuid7
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from uuid_utils import uuid7
 
-from src.config.log_helper import setup_logging
-from src.db.database import (
+from app.core.enums import FileUploadContext, FileUsageType, UploadedFileStatus
+from app.core.logging import setup_logging
+from app.models import (
     ChatFile,
     FileVersion,
     UploadedFile,
     UserVectorStore,
     VectorStoreFile,
 )
-from src.db.enums import FileUploadContext, FileUsageType, UploadedFileStatus
 
 logger = setup_logging(__file__)
 
@@ -37,7 +37,8 @@ logger = setup_logging(__file__)
 # UserVectorStore
 # ============================================================================
 
-async def get_user_vector_store(user_id: str, session: AsyncSession) -> Optional[UserVectorStore]:
+
+async def get_user_vector_store(user_id: str, session: AsyncSession) -> UserVectorStore | None:
     """
     Fetch the single ``UserVectorStore`` row for *user_id*, or ``None``.
     """
@@ -68,7 +69,9 @@ async def create_user_vector_store(
         )
         session.add(record)
         await session.flush()
-        logger.info(f"Created user_vector_store id={record.id} for user_id={user_id}, vs_id={vector_store_id}")
+        logger.info(
+            f"Created user_vector_store id={record.id} for user_id={user_id}, vs_id={vector_store_id}"
+        )
         return record
     except SQLAlchemyError as e:
         logger.error(f"DB error creating user_vector_store for user_id={user_id}: {e}")
@@ -85,7 +88,7 @@ async def touch_vector_store_accessed(
     reaping actively-used vector stores.
     """
     try:
-        vs_record.last_accessed_at = datetime.now(timezone.utc)
+        vs_record.last_accessed_at = datetime.now(UTC)
         await session.flush()
     except SQLAlchemyError as e:
         logger.error(f"DB error touching user_vector_store last_accessed_at: {e}")
@@ -103,7 +106,7 @@ async def update_user_vector_store_id(
     """
     try:
         user_vector_store_record.vector_store_id = new_vector_store_id
-        user_vector_store_record.last_accessed_at = datetime.now(timezone.utc)
+        user_vector_store_record.last_accessed_at = datetime.now(UTC)
         await session.flush()
         logger.info(
             f"Updated user_vector_store id={user_vector_store_record.id} "
@@ -118,6 +121,7 @@ async def update_user_vector_store_id(
 # UploadedFile
 # ============================================================================
 
+
 async def create_uploaded_file(
     *,
     user_id: str,
@@ -126,8 +130,8 @@ async def create_uploaded_file(
     file_size: int,
     file_type: str,
     content_hash: str,
-    upload_context = FileUploadContext.IN_CHAT,
-    status = UploadedFileStatus.PROCESSING,
+    upload_context=FileUploadContext.IN_CHAT,
+    status=UploadedFileStatus.PROCESSING,
     session: AsyncSession,
 ) -> UploadedFile:
     """
@@ -160,7 +164,7 @@ async def create_uploaded_file(
 async def get_uploaded_file_by_id(
     uploaded_file_id: str,
     session: AsyncSession,
-) -> Optional[UploadedFile]:
+) -> UploadedFile | None:
     """
     Fetch a single ``UploadedFile`` by its primary key.
     """
@@ -178,7 +182,7 @@ async def get_uploaded_file_by_hash(
     user_id: str,
     content_hash: str,
     session: AsyncSession,
-) -> Optional[UploadedFile]:
+) -> UploadedFile | None:
     """
     Find an existing non-deleted uploaded file for this user with the same
     content hash (duplicate detection).
@@ -208,7 +212,7 @@ async def touch_uploaded_file_accessed(
     uploaded files.
     """
     try:
-        uploaded_file.last_accessed_at = datetime.now(timezone.utc)
+        uploaded_file.last_accessed_at = datetime.now(UTC)
         await session.flush()
     except SQLAlchemyError as e:
         logger.error(f"DB error touching uploaded_file last_accessed_at: {e}")
@@ -225,7 +229,7 @@ async def update_uploaded_file_status(
     """
     try:
         uploaded_file.status = new_status
-        uploaded_file.updated_at = datetime.now(timezone.utc)
+        uploaded_file.updated_at = datetime.now(UTC)
         await session.flush()
         logger.info(f"Updated uploaded_file id={uploaded_file.id} status → {new_status}")
     except SQLAlchemyError as e:
@@ -237,9 +241,9 @@ async def get_user_uploaded_files(
     user_id: str,
     session: AsyncSession,
     *,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-) -> Dict[str, Any]:
+    limit: int | None = None,
+    offset: int | None = None,
+) -> dict[str, Any]:
     """
     Return non-deleted uploaded files for a user, newest first, with pagination.
 
@@ -257,11 +261,7 @@ async def get_user_uploaded_files(
         )
         total = count_result.scalar()
 
-        query = (
-            select(UploadedFile)
-            .where(*base_filter)
-            .order_by(UploadedFile.created_at.desc())
-        )
+        query = select(UploadedFile).where(*base_filter).order_by(UploadedFile.created_at.desc())
         if offset is not None:
             query = query.offset(offset)
         if limit is not None:
@@ -283,7 +283,7 @@ async def soft_delete_uploaded_file(
     """
     try:
         uploaded_file.is_deleted_by_user = True
-        uploaded_file.deleted_by_user_at = datetime.now(timezone.utc)
+        uploaded_file.deleted_by_user_at = datetime.now(UTC)
         await session.flush()
         logger.info(f"Soft-deleted uploaded_file id={uploaded_file.id}")
     except SQLAlchemyError as e:
@@ -294,6 +294,7 @@ async def soft_delete_uploaded_file(
 # ============================================================================
 # FileVersion
 # ============================================================================
+
 
 async def create_file_version(
     *,
@@ -326,7 +327,7 @@ async def create_file_version(
 async def get_active_file_version(
     uploaded_file_id: str,
     session: AsyncSession,
-) -> Optional[FileVersion]:
+) -> FileVersion | None:
     """
     Get the single *active* ``FileVersion`` for a given uploaded file.
     """
@@ -339,7 +340,9 @@ async def get_active_file_version(
         )
         return result.scalar_one_or_none()
     except SQLAlchemyError as e:
-        logger.error(f"DB error fetching active file_version for uploaded_file_id={uploaded_file_id}: {e}")
+        logger.error(
+            f"DB error fetching active file_version for uploaded_file_id={uploaded_file_id}: {e}"
+        )
         raise
 
 
@@ -353,7 +356,7 @@ async def touch_file_version_verified(
     actively-used file versions.
     """
     try:
-        file_version.last_verified_at = datetime.now(timezone.utc)
+        file_version.last_verified_at = datetime.now(UTC)
         await session.flush()
     except SQLAlchemyError as e:
         logger.error(f"DB error touching file_version last_verified_at: {e}")
@@ -369,7 +372,7 @@ async def deactivate_file_version(
     """
     try:
         file_version.is_active = False
-        file_version.inactive_at = datetime.now(timezone.utc)
+        file_version.inactive_at = datetime.now(UTC)
         await session.flush()
         logger.info(f"Deactivated file_version id={file_version.id}")
     except SQLAlchemyError as e:
@@ -380,6 +383,7 @@ async def deactivate_file_version(
 # ============================================================================
 # VectorStoreFile (junction)
 # ============================================================================
+
 
 async def create_vector_store_file(
     *,
@@ -411,7 +415,7 @@ async def create_vector_store_file(
 async def get_active_vector_store_files(
     user_vector_store_id: str,
     session: AsyncSession,
-) -> List[VectorStoreFile]:
+) -> list[VectorStoreFile]:
     """
     Return all **non-deleted** junction rows for the given vector store record.
     Used during vector store recreation to re-attach previously linked files.
@@ -425,7 +429,9 @@ async def get_active_vector_store_files(
         )
         return list(result.scalars().all())
     except SQLAlchemyError as e:
-        logger.error(f"DB error listing active vector_store_files for vs={user_vector_store_id}: {e}")
+        logger.error(
+            f"DB error listing active vector_store_files for vs={user_vector_store_id}: {e}"
+        )
         raise
 
 
@@ -441,7 +447,7 @@ async def soft_delete_vector_store_files_by_vs(
         Number of rows updated.
     """
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await session.execute(
             update(VectorStoreFile)
             .where(
@@ -473,7 +479,7 @@ async def soft_delete_vector_store_file_by_version(
         non-deleted row was found.
     """
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         result = await session.execute(
             update(VectorStoreFile)
             .where(
@@ -523,13 +529,14 @@ async def check_file_version_in_vector_store(
 # ChatFile
 # ============================================================================
 
+
 async def create_chat_file(
     *,
     chat_id: str,
     uploaded_file_id: str,
-    file_version_id: Optional[str],
+    file_version_id: str | None,
     usage_type: FileUsageType,
-    upload_context: Optional[FileUploadContext] = None,
+    upload_context: FileUploadContext | None = None,
     session: AsyncSession,
 ) -> ChatFile:
     """
@@ -562,20 +569,23 @@ async def create_chat_file(
 async def get_chat_files(
     chat_id: str,
     session: AsyncSession,
-) -> List[ChatFile]:
+) -> list[ChatFile]:
     """
     Return all ``ChatFile`` rows for a given chat_id.
     """
     logger.info(f"[DB_GET_CHAT_FILES] Fetching chat files | chat_id={chat_id}")
     try:
-        result = await session.execute(
-            select(ChatFile).where(ChatFile.chat_id == chat_id)
-        )
+        result = await session.execute(select(ChatFile).where(ChatFile.chat_id == chat_id))
         files = list(result.scalars().all())
-        logger.info(f"[DB_GET_CHAT_FILES] Chat files fetched | chat_id={chat_id} | file_count={len(files)}")
+        logger.info(
+            f"[DB_GET_CHAT_FILES] Chat files fetched | chat_id={chat_id} | file_count={len(files)}"
+        )
         return files
     except SQLAlchemyError as e:
-        logger.error(f"[DB_GET_CHAT_FILES] Database error | chat_id={chat_id} | error={str(e)}", exc_info=True)
+        logger.error(
+            f"[DB_GET_CHAT_FILES] Database error | chat_id={chat_id} | error={e!s}",
+            exc_info=True,
+        )
         raise
 
 
@@ -597,11 +607,12 @@ async def chat_has_files(chat_id: str, session: AsyncSession) -> bool:
 # Composite queries used by chat_producer for upload_file_config
 # ============================================================================
 
+
 async def build_upload_file_config_from_chat(
     chat_id: str,
     user_id: str,
     session: AsyncSession,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Build the ``upload_file_config`` dict (``{file_ids, vector_store_id, file_metadata}``)
     from existing ``chat_files`` for a continuing chat.
@@ -616,22 +627,24 @@ async def build_upload_file_config_from_chat(
             return None
 
         # Collect active openai_file_ids and file metadata from file_versions
-        openai_file_ids: List[str] = []
-        file_metadata: List[Dict[str, str]] = []
-        
+        openai_file_ids: list[str] = []
+        file_metadata: list[dict[str, str]] = []
+
         for cf in chat_file_rows:
             if cf.file_version_id:
                 fv = await session.get(FileVersion, cf.file_version_id)
                 if fv and fv.is_active and fv.openai_file_id:
                     openai_file_ids.append(fv.openai_file_id)
-                    
+
                     # Fetch original filename from uploaded_files
                     uploaded_file = await session.get(UploadedFile, cf.uploaded_file_id)
                     if uploaded_file:
-                        file_metadata.append({
-                            "filename": uploaded_file.original_filename,
-                            "file_type": uploaded_file.file_type,
-                        })
+                        file_metadata.append(
+                            {
+                                "filename": uploaded_file.original_filename,
+                                "file_type": uploaded_file.file_type,
+                            }
+                        )
 
         if not openai_file_ids:
             logger.warning(f"Chat {chat_id} has chat_files but no active file_versions")
@@ -656,10 +669,10 @@ async def build_upload_file_config_from_chat(
 
 
 async def build_upload_file_config_from_reference_ids(
-    reference_ids: List[str],
+    reference_ids: list[str],
     user_id: str,
     session: AsyncSession,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Build ``upload_file_config`` from a list of ``uploaded_files.id`` values
     (sent by the frontend on the first chat message).
@@ -669,21 +682,23 @@ async def build_upload_file_config_from_reference_ids(
         and ``file_metadata`` (list of dicts with filename info), or ``None``.
     """
     try:
-        openai_file_ids: List[str] = []
-        file_metadata: List[Dict[str, str]] = []
-        
+        openai_file_ids: list[str] = []
+        file_metadata: list[dict[str, str]] = []
+
         for ref_id in reference_ids:
             fv = await get_active_file_version(ref_id, session)
             if fv and fv.openai_file_id:
                 openai_file_ids.append(fv.openai_file_id)
-                
+
                 # Fetch original filename from uploaded_files
                 uploaded_file = await session.get(UploadedFile, ref_id)
                 if uploaded_file:
-                    file_metadata.append({
-                        "filename": uploaded_file.original_filename,
-                        "file_type": uploaded_file.file_type,
-                    })
+                    file_metadata.append(
+                        {
+                            "filename": uploaded_file.original_filename,
+                            "file_type": uploaded_file.file_type,
+                        }
+                    )
             else:
                 logger.warning(f"No active file_version for uploaded_file_id={ref_id}")
 
@@ -705,4 +720,3 @@ async def build_upload_file_config_from_reference_ids(
     except SQLAlchemyError as e:
         logger.error(f"DB error building upload_file_config from reference_ids: {e}")
         raise
-

@@ -12,16 +12,15 @@ secret is configured, send nothing when one is not. That "exactly the same
 condition" is why it lives in one function rather than three copies — the
 failure mode of the copies drifting is a 403 in production only.
 """
-from typing import Dict
 
-from src.config.constants import INTERNAL_API_SECRET
+from app.core.constants import INTERNAL_API_SECRET
 
 #: The header name render-report reads. Keep in sync with
 #: render-report/src/resources/dependencies.py:INTERNAL_SECRET_HEADER.
 INTERNAL_SECRET_HEADER = "x-internal-secret"
 
 
-def internal_headers() -> Dict[str, str]:
+def internal_headers() -> dict[str, str]:
     """Auth headers for a call to a sibling service's /internal/* router.
 
     Returns an empty dict when no secret is configured, which is the local-dev

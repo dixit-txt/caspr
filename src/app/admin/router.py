@@ -3,16 +3,16 @@
 User tracking  → users / chats / reports / versions + current subscription only
 Cost tracking  → costtracker only (tokens, spend, model, feature/context)
 """
+
 from datetime import datetime
-from typing import Optional, Tuple, Union
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
-from src.config.log_helper import setup_logging
-from src.core.auth.admin_auth import get_current_dashboard_admin
-from src.db import admin_db
-from src.db.db_utils import async_session_scope
+from app.admin import repository as admin_db
+from app.admin.dependencies import get_current_dashboard_admin
+from app.core.db import async_session_scope
+from app.core.logging import setup_logging
 
 logger = setup_logging(__file__)
 
@@ -28,10 +28,10 @@ def _ok(data: dict) -> dict:
 
 
 def _resolve_period(
-    range: Optional[str],
-    start_date: Optional[str],
-    end_date: Optional[str],
-) -> Union[Tuple[Optional[datetime], datetime, str], JSONResponse]:
+    range: str | None,
+    start_date: str | None,
+    end_date: str | None,
+) -> tuple[datetime | None, datetime, str] | JSONResponse:
     try:
         return admin_db.resolve_period(range, start_date, end_date)
     except ValueError as e:
@@ -41,7 +41,7 @@ def _resolve_period(
         )
 
 
-def _period_payload(key: str, start: Optional[datetime], end: datetime) -> dict:
+def _period_payload(key: str, start: datetime | None, end: datetime) -> dict:
     return {
         "range": key,
         "start": start.isoformat() if start else None,
@@ -58,9 +58,9 @@ async def admin_me(admin: dict = Depends(get_current_dashboard_admin)):
 @router.get("/overview")
 async def overview(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = Query(None, description="Optional: scope to one user"),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = Query(None, description="Optional: scope to one user"),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     """
@@ -77,9 +77,7 @@ async def overview(
             return resolved
         start, end, key = resolved
         async with async_session_scope() as session:
-            costs = await admin_db.cost_summary(
-                session, start=start, end=end, user_id=user_id
-            )
+            costs = await admin_db.cost_summary(session, start=start, end=end, user_id=user_id)
             functionalities = await admin_db.cost_by_functionality(
                 session, start=start, end=end, user_id=user_id
             )
@@ -103,9 +101,7 @@ async def overview(
             payload["active_users"] = await admin_db.count_active_users(
                 session, start=start, end=end
             )
-            payload["new_users"] = await admin_db.count_new_users(
-                session, start=start, end=end
-            )
+            payload["new_users"] = await admin_db.count_new_users(session, start=start, end=end)
             if user_id:
                 summary = await admin_db.user_summary(
                     session, user_id=user_id, start=start, end=end
@@ -132,6 +128,7 @@ async def overview(
 # USER TRACKING
 # ---------------------------------------------------------------------------
 
+
 @router.get("/users/search")
 async def users_search(
     q: str = Query(..., min_length=1),
@@ -153,8 +150,8 @@ async def users_search(
 @router.get("/users/active")
 async def users_active(
     range: str = Query("30d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
     include_list: bool = Query(True, description="Include paginated active-user rows"),
@@ -186,15 +183,13 @@ async def users_active(
 @router.get("/users")
 async def users_list(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    q: Optional[str] = Query(None, description="Search user name or email"),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    q: str | None = Query(None, description="Search user name or email"),
     sort: str = Query("spend", description="spend | chats | last_active"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
-    active_only: bool = Query(
-        False, description="If true, only users with activity in the period"
-    ),
+    active_only: bool = Query(False, description="If true, only users with activity in the period"),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     """All users (searchable, paginated), sorted by usage in the selected period."""
@@ -226,8 +221,8 @@ async def users_list(
 async def users_summary(
     user_id: str,
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     """One user: profile, subscription, activity counts, cost breakdown (costtracker)."""
@@ -237,9 +232,7 @@ async def users_summary(
             return resolved
         start, end, key = resolved
         async with async_session_scope() as session:
-            summary = await admin_db.user_summary(
-                session, user_id=user_id, start=start, end=end
-            )
+            summary = await admin_db.user_summary(session, user_id=user_id, start=start, end=end)
             if not summary:
                 return JSONResponse(
                     status_code=404, content={"success": False, "error": "User not found"}
@@ -256,8 +249,8 @@ async def users_summary(
 async def users_chats(
     user_id: str,
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
     limit: int = Query(50, ge=1, le=200),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
@@ -271,11 +264,13 @@ async def users_chats(
             chats = await admin_db.user_chats(
                 session, user_id=user_id, start=start, end=end, limit=limit
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                "chats": chats,
-            })
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    "chats": chats,
+                }
+            )
     except Exception as e:
         logger.error(f"[ADMIN_USER_CHATS] {e}", exc_info=True)
         return JSONResponse(
@@ -288,8 +283,8 @@ async def chat_costs(
     user_id: str,
     chat_id: str,
     range: str = Query("all", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     """Tree level: Chat → costtracker feature/model breakdown."""
@@ -299,14 +294,14 @@ async def chat_costs(
             return resolved
         start, end, key = resolved
         async with async_session_scope() as session:
-            costs = await admin_db.cost_for_chat(
-                session, chat_id=chat_id, start=start, end=end
+            costs = await admin_db.cost_for_chat(session, chat_id=chat_id, start=start, end=end)
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    **costs,
+                }
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                **costs,
-            })
     except Exception as e:
         logger.error(f"[ADMIN_CHAT_COSTS] {e}", exc_info=True)
         return JSONResponse(
@@ -353,12 +348,13 @@ async def report_versions_list(
 # COST TRACKING — costtracker only
 # ---------------------------------------------------------------------------
 
+
 @router.get("/costs/summary")
 async def costs_summary(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = None,
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = None,
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     try:
@@ -367,9 +363,7 @@ async def costs_summary(
             return resolved
         start, end, key = resolved
         async with async_session_scope() as session:
-            summary = await admin_db.cost_summary(
-                session, start=start, end=end, user_id=user_id
-            )
+            summary = await admin_db.cost_summary(session, start=start, end=end, user_id=user_id)
             return _ok({**_period_payload(key, start, end), "user_id": user_id, **summary})
     except Exception as e:
         logger.error(f"[ADMIN_COSTS_SUMMARY] {e}", exc_info=True)
@@ -381,9 +375,9 @@ async def costs_summary(
 @router.get("/costs/by-feature")
 async def costs_by_feature(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = None,
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
@@ -396,11 +390,13 @@ async def costs_by_feature(
             rows = await admin_db.cost_by_feature(
                 session, start=start, end=end, user_id=user_id, limit=limit
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                "features": rows,
-            })
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    "features": rows,
+                }
+            )
     except Exception as e:
         logger.error(f"[ADMIN_COSTS_BY_FEATURE] {e}", exc_info=True)
         return JSONResponse(
@@ -411,9 +407,9 @@ async def costs_by_feature(
 @router.get("/costs/by-functionality")
 async def costs_by_functionality(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = None,
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = None,
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     """Spend grouped by user-facing functionality (chat, report generation,
@@ -428,11 +424,13 @@ async def costs_by_functionality(
             rows = await admin_db.cost_by_functionality(
                 session, start=start, end=end, user_id=user_id
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                "functionalities": rows,
-            })
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    "functionalities": rows,
+                }
+            )
     except Exception as e:
         logger.error(f"[ADMIN_COSTS_BY_FUNCTIONALITY] {e}", exc_info=True)
         return JSONResponse(
@@ -443,9 +441,9 @@ async def costs_by_functionality(
 @router.get("/costs/by-model")
 async def costs_by_model(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = None,
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = None,
     limit: int = Query(30, ge=1, le=100),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
@@ -458,11 +456,13 @@ async def costs_by_model(
             rows = await admin_db.cost_by_model(
                 session, start=start, end=end, user_id=user_id, limit=limit
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                "models": rows,
-            })
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    "models": rows,
+                }
+            )
     except Exception as e:
         logger.error(f"[ADMIN_COSTS_BY_MODEL] {e}", exc_info=True)
         return JSONResponse(
@@ -473,8 +473,8 @@ async def costs_by_model(
 @router.get("/costs/by-user")
 async def costs_by_user(
     range: str = Query("2d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
     limit: int = Query(50, ge=1, le=200),
     admin: dict = Depends(get_current_dashboard_admin),
 ):
@@ -496,9 +496,9 @@ async def costs_by_user(
 @router.get("/costs/timeseries")
 async def costs_timeseries(
     range: str = Query("30d", description=_RANGE_DESC),
-    start_date: Optional[str] = Query(None, description=_START_DESC),
-    end_date: Optional[str] = Query(None, description=_END_DESC),
-    user_id: Optional[str] = None,
+    start_date: str | None = Query(None, description=_START_DESC),
+    end_date: str | None = Query(None, description=_END_DESC),
+    user_id: str | None = None,
     admin: dict = Depends(get_current_dashboard_admin),
 ):
     try:
@@ -510,14 +510,14 @@ async def costs_timeseries(
         if key == "all" and start is None and not start_date and not end_date:
             start, end, key = admin_db.parse_range("30d")
         async with async_session_scope() as session:
-            rows = await admin_db.cost_timeseries(
-                session, start=start, end=end, user_id=user_id
+            rows = await admin_db.cost_timeseries(session, start=start, end=end, user_id=user_id)
+            return _ok(
+                {
+                    **_period_payload(key, start, end),
+                    "user_id": user_id,
+                    "series": rows,
+                }
             )
-            return _ok({
-                **_period_payload(key, start, end),
-                "user_id": user_id,
-                "series": rows,
-            })
     except Exception as e:
         logger.error(f"[ADMIN_COSTS_TIMESERIES] {e}", exc_info=True)
         return JSONResponse(

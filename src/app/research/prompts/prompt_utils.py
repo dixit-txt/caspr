@@ -187,17 +187,21 @@ def build_card_gen_prompt(
     parts = []
 
     # 1. Core task (always first — highest attention)
-    parts.append(_TASK_BLOCK.format(
-        current_date=current_date,
-        target_section=target_section,
-        section_description=section_description,
-        sub_sections_str=sub_sections_str,
-    ))
+    parts.append(
+        _TASK_BLOCK.format(
+            current_date=current_date,
+            target_section=target_section,
+            section_description=section_description,
+            sub_sections_str=sub_sections_str,
+        )
+    )
 
     # 2. User instructions
-    parts.append(_USER_INSTRUCTIONS_BLOCK.format(
-        user_instructions=user_instructions,
-    ))
+    parts.append(
+        _USER_INSTRUCTIONS_BLOCK.format(
+            user_instructions=user_instructions,
+        )
+    )
 
     # 3. Source rules (file vs web)
     if has_file:
@@ -209,23 +213,31 @@ def build_card_gen_prompt(
 
     # 4. Previous cards context (non-first sections only)
     if previous_cards_content:
-        parts.append(_PREVIOUS_CARDS_BLOCK.format(
-            previous_cards_content=previous_cards_content,
-        ))
+        parts.append(
+            _PREVIOUS_CARDS_BLOCK.format(
+                previous_cards_content=previous_cards_content,
+            )
+        )
     elif cumulative_summary:
-        parts.append(_CUMULATIVE_SUMMARY_BLOCK.format(
-            cumulative_summary=cumulative_summary,
-        ))
+        parts.append(
+            _CUMULATIVE_SUMMARY_BLOCK.format(
+                cumulative_summary=cumulative_summary,
+            )
+        )
 
     # 5. Layout context
-    parts.append(_LAYOUT_BLOCK.format(
-        descriptive_report_layout=descriptive_report_layout,
-    ))
+    parts.append(
+        _LAYOUT_BLOCK.format(
+            descriptive_report_layout=descriptive_report_layout,
+        )
+    )
 
     # 6. Report length
-    parts.append(_REPORT_LENGTH_BLOCK.format(
-        report_length=report_length,
-    ))
+    parts.append(
+        _REPORT_LENGTH_BLOCK.format(
+            report_length=report_length,
+        )
+    )
 
     # 7. Formatting rules
     parts.append(_FORMATTING_RULES)
@@ -238,10 +250,12 @@ def build_card_gen_prompt(
         parts.append(_CITATION_RULES_WITHOUT_FILE)
 
     # 8. Output format (always last)
-    parts.append(_OUTPUT_FORMAT.format(
-        json_open="{",
-        json_close="}",
-    ))
+    parts.append(
+        _OUTPUT_FORMAT.format(
+            json_open="{",
+            json_close="}",
+        )
+    )
 
     return "\n".join(parts)
 
@@ -667,12 +681,12 @@ CARD_SUMMARY_SCHEMA = {
             "properties": {
                 "summary": {
                     "type": "string",
-                    "description": "A detailed and complete summary of the section, covering all listed points in a cohesive paragraph form. This should never be empty or null or None"
+                    "description": "A detailed and complete summary of the section, covering all listed points in a cohesive paragraph form. This should never be empty or null or None",
                 }
             },
-            "required": ["summary"]
-        }
-    }
+            "required": ["summary"],
+        },
+    },
 }
 
 # Gemini structured-output equivalent of CARD_SUMMARY_SCHEMA (plain JSON schema,
@@ -682,29 +696,29 @@ CARD_SUMMARY_SCHEMA_GEMINI = {
     "properties": {
         "summary": {
             "type": "string",
-            "description": "A detailed and complete summary of the section, covering all listed points in a cohesive paragraph form. This should never be empty or null or None"
+            "description": "A detailed and complete summary of the section, covering all listed points in a cohesive paragraph form. This should never be empty or null or None",
         }
     },
-    "required": ["summary"]
+    "required": ["summary"],
 }
 
 MERGE_CUMULATIVE_SUMMARY_SCHEMA = {
-        "type": "function",
-        "function": {
-            "name": "merge_into_cumulative_summary",
-            "description": "Merge the existing cumulative summary and a new section summary into a single cumulative summary, preserving all content and maintaining logical flow.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "cumulative_summary": {
-                        "type": "string",
-                        "description": "The updated cumulative summary that merges the previous cumulative summary and the new section summary into one coherent paragraph, without omitting or summarizing any content. This should never be empty or null or None"
-                    }
-                },
-                "required": ["cumulative_summary"]
-            }
-        }
-    }
+    "type": "function",
+    "function": {
+        "name": "merge_into_cumulative_summary",
+        "description": "Merge the existing cumulative summary and a new section summary into a single cumulative summary, preserving all content and maintaining logical flow.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "cumulative_summary": {
+                    "type": "string",
+                    "description": "The updated cumulative summary that merges the previous cumulative summary and the new section summary into one coherent paragraph, without omitting or summarizing any content. This should never be empty or null or None",
+                }
+            },
+            "required": ["cumulative_summary"],
+        },
+    },
+}
 
 # Gemini structured-output equivalent of MERGE_CUMULATIVE_SUMMARY_SCHEMA.
 MERGE_CUMULATIVE_SUMMARY_SCHEMA_GEMINI = {
@@ -712,10 +726,10 @@ MERGE_CUMULATIVE_SUMMARY_SCHEMA_GEMINI = {
     "properties": {
         "cumulative_summary": {
             "type": "string",
-            "description": "The updated cumulative summary that merges the previous cumulative summary and the new section summary into one coherent paragraph, without omitting or summarizing any content. This should never be empty or null or None"
+            "description": "The updated cumulative summary that merges the previous cumulative summary and the new section summary into one coherent paragraph, without omitting or summarizing any content. This should never be empty or null or None",
         }
     },
-    "required": ["cumulative_summary"]
+    "required": ["cumulative_summary"],
 }
 
 MERGE_CUMULATIVE_SUMMARY_PROMPT = """
@@ -816,18 +830,18 @@ DRL_JSON_SCHEMA_GEMINI = {
                 "properties": {
                     "section": {
                         "type": "string",
-                        "description": "The name of the section (in markdown heading format)."
+                        "description": "The name of the section (in markdown heading format).",
                     },
                     "description": {
                         "type": "string",
-                        "description": "This should be the guidance about what to include here about the above section(dont use # or ## in the orany other markdown formatting just plain text), Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests."
+                        "description": "This should be the guidance about what to include here about the above section(dont use # or ## in the orany other markdown formatting just plain text), Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests.",
                     },
                     "heartbeat": {
                         "type": "array",
                         "description": "An ordered list of EXACTLY 5 short, concrete, user-facing status lines describing how the research/writing of THIS ENTIRE section unfolds, covering the section AS A WHOLE including all of its subsections (not any single subsection in isolation). E.g. 'Researching the latest regulatory changes affecting X', 'Analyzing market data on X', 'Cross-referencing sources on X', 'Structuring the key findings for X', 'Finalizing the analysis for X'. Must be specific to this section's overall topic and its subsections, never generic filler, and never mention tool names or internal processes.",
                         "items": {"type": "string"},
                         "minItems": 5,
-                        "maxItems": 5
+                        "maxItems": 5,
                     },
                     "sub_sections": {
                         "type": "array",
@@ -837,22 +851,22 @@ DRL_JSON_SCHEMA_GEMINI = {
                             "properties": {
                                 "name": {
                                     "type": "string",
-                                    "description": "Name of the subsection (in markdown bullet or title format)."
+                                    "description": "Name of the subsection (in markdown bullet or title format).",
                                 },
                                 "description": {
                                     "type": "string",
-                                    "description": "Detailed guidance on what to include in this subsection, Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests."
-                                }
+                                    "description": "Detailed guidance on what to include in this subsection, Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests.",
+                                },
                             },
-                            "required": ["name", "description"]
-                        }
-                    }
+                            "required": ["name", "description"],
+                        },
+                    },
                 },
-                "required": ["section", "sub_sections", "description", "heartbeat"]
-            }
+                "required": ["section", "sub_sections", "description", "heartbeat"],
+            },
         }
     },
-    "required": ["descriptive_report_layout"]
+    "required": ["descriptive_report_layout"],
 }
 
 DRL_PROMPT = """
@@ -1101,18 +1115,18 @@ DRL_JSON_SCHEMA_OPENAI = {
                         "properties": {
                             "section": {
                                 "type": "string",
-                                "description": "The name of the section (in markdown heading format)."
+                                "description": "The name of the section (in markdown heading format).",
                             },
                             "description": {
                                 "type": "string",
-                                "description": "This should be the guidance about what to include here about the above section(dont use # or ## in the orany other markdown formatting just plain text), Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests."
+                                "description": "This should be the guidance about what to include here about the above section(dont use # or ## in the orany other markdown formatting just plain text), Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests.",
                             },
                             "heartbeat": {
                                 "type": "array",
                                 "description": "An ordered list of EXACTLY 5 short, concrete, user-facing status lines describing how the research/writing of THIS ENTIRE section unfolds, covering the section AS A WHOLE including all of its subsections (not any single subsection in isolation). E.g. 'Researching the latest regulatory changes affecting X', 'Analyzing market data on X', 'Cross-referencing sources on X', 'Structuring the key findings for X', 'Finalizing the analysis for X'. Must be specific to this section's overall topic and its subsections, never generic filler, and never mention tool names or internal processes.",
                                 "items": {"type": "string"},
                                 "minItems": 5,
-                                "maxItems": 5
+                                "maxItems": 5,
                             },
                             "sub_sections": {
                                 "type": "array",
@@ -1122,24 +1136,24 @@ DRL_JSON_SCHEMA_OPENAI = {
                                     "properties": {
                                         "name": {
                                             "type": "string",
-                                            "description": "Name of the subsection (in markdown bullet or title format)."
+                                            "description": "Name of the subsection (in markdown bullet or title format).",
                                         },
                                         "description": {
                                             "type": "string",
-                                            "description": "Detailed guidance on what to include in this subsection, Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests."
-                                        }
+                                            "description": "Detailed guidance on what to include in this subsection, Keep the user's original user_instructions in mind and ensure the content addresses their specific requirements and interests.",
+                                        },
                                     },
-                                    "required": ["name", "description"]
-                                }
-                            }
+                                    "required": ["name", "description"],
+                                },
+                            },
                         },
-                        "required": ["section", "sub_sections", "description", "heartbeat"]
-                    }
+                        "required": ["section", "sub_sections", "description", "heartbeat"],
+                    },
                 }
             },
-            "required": ["descriptive_report_layout"]
-        }
-    }
+            "required": ["descriptive_report_layout"],
+        },
+    },
 }
 
 
@@ -1428,23 +1442,23 @@ Do not ask the user for the file_id - it is already available."""
 def get_system_message_with_documents(file_metadata: list) -> str:
     """
     Generate dynamic system message based on uploaded files.
-    
+
     Args:
         file_metadata: List of dicts with 'filename' and 'file_type' keys
-    
+
     Returns:
         Formatted system message string
     """
     if not file_metadata:
         return SYSTEM_MESSAGE_WITH_DOCUMENT
-    
+
     file_count = len(file_metadata)
-    
+
     if file_count == 1:
         file_info = f"The user has uploaded 1 document: '{file_metadata[0]['filename']}'"
         multi_doc_instruction = ""
     else:
-        filenames = "', '".join([f['filename'] for f in file_metadata])
+        filenames = "', '".join([f["filename"] for f in file_metadata])
         file_info = f"The user has uploaded {file_count} documents: '{filenames}'"
         multi_doc_instruction = (
             f"\n\n**CRITICAL — MULTIPLE DOCUMENTS UPLOADED ({file_count} documents):**\n"
@@ -1456,7 +1470,7 @@ def get_system_message_with_documents(file_metadata: list) -> str:
             f"- If the user asks for a report based on the uploaded documents, ensure ALL {file_count} documents are considered\n"
             f"- NEVER assume one document represents all uploads — always account for all {file_count} documents"
         )
-    
+
     return (
         f"\n\n**UPLOADED DOCUMENTS:**\n{file_info}\n\n"
         f"You have access to these documents and can query them using the 'query_document' tool.\n"
@@ -1465,6 +1479,7 @@ def get_system_message_with_documents(file_metadata: list) -> str:
         f"User-facing framing is always the Learning Brain: if you need to mention the retrieval process, say you are tapping into the Learning Brain. Never mention web search, document querying, tool names, or internal retrieval mechanisms to the user."
         f"{multi_doc_instruction}"
     )
+
 
 # [PAUSED] Original SYSTEM_MESSAGE_WITH_DOCUMENT with retrieve_latest_info references
 # SYSTEM_MESSAGE_WITH_DOCUMENT_ORIGINAL = """
@@ -1570,7 +1585,6 @@ def get_system_message_with_documents(file_metadata: list) -> str:
 # """
 
 
-
 CHAT_TITLE_PROMPT = """As an expert title generator, create a concise, informative title based on this first exchange.
 
 The title should:
@@ -1601,12 +1615,12 @@ REFINE_CUMULATIVE_SUMMARY_SCHEMA = {
             "properties": {
                 "cumulative_summary": {
                     "type": "string",
-                    "description": "The summarized executive summary in 500-600 words."
+                    "description": "The summarized executive summary in 500-600 words.",
                 }
             },
-            "required": ["cumulative_summary"]
-        }
-    }
+            "required": ["cumulative_summary"],
+        },
+    },
 }
 
 # Gemini structured-output equivalent of REFINE_CUMULATIVE_SUMMARY_SCHEMA.
@@ -1615,10 +1629,10 @@ REFINE_CUMULATIVE_SUMMARY_SCHEMA_GEMINI = {
     "properties": {
         "cumulative_summary": {
             "type": "string",
-            "description": "The summarized executive summary in 500-600 words."
+            "description": "The summarized executive summary in 500-600 words.",
         }
     },
-    "required": ["cumulative_summary"]
+    "required": ["cumulative_summary"],
 }
 
 REFINE_CUMULATIVE_SUMMARY_PROMPT = """Summarize the following into an executive summary. Do not add any title or heading.
@@ -1656,12 +1670,12 @@ COMPRESS_CONTEXT_SUMMARY_SCHEMA = {
             "properties": {
                 "compressed_summary": {
                     "type": "string",
-                    "description": "The compressed context summary in bullet-point format, 400-600 words."
+                    "description": "The compressed context summary in bullet-point format, 400-600 words.",
                 }
             },
-            "required": ["compressed_summary"]
-        }
-    }
+            "required": ["compressed_summary"],
+        },
+    },
 }
 
 # Gemini structured-output equivalent of COMPRESS_CONTEXT_SUMMARY_SCHEMA
@@ -1670,10 +1684,10 @@ COMPRESS_CONTEXT_SUMMARY_SCHEMA_GEMINI = {
     "properties": {
         "compressed_summary": {
             "type": "string",
-            "description": "The compressed context summary in bullet-point format, 400-600 words."
+            "description": "The compressed context summary in bullet-point format, 400-600 words.",
         }
     },
-    "required": ["compressed_summary"]
+    "required": ["compressed_summary"],
 }
 # Publish Prompts and Schemas
 
@@ -1686,57 +1700,42 @@ PUBLISH_STUFF_SCHEMA = {
             "properties": {
                 "perspective": {
                     "type": "object",
-                    "properties": {
-                        "purpose": {"type": "string"},
-                        "audience": {"type": "string"}
-                    },
+                    "properties": {"purpose": {"type": "string"}, "audience": {"type": "string"}},
                     "required": ["purpose", "audience"],
-                    "additionalProperties": False
+                    "additionalProperties": False,
                 },
                 "focus_areas": {
                     "type": "object",
                     "properties": {
                         "industries_jobs": {"type": "string"},
                         "geographic_areas": {"type": "string"},
-                        "special_emphasis": {"type": "string"}
+                        "special_emphasis": {"type": "string"},
                     },
                     "required": ["industries_jobs", "geographic_areas", "special_emphasis"],
-                    "additionalProperties": False
-                }
+                    "additionalProperties": False,
+                },
             },
             "required": ["perspective", "focus_areas"],
-            "additionalProperties": False
+            "additionalProperties": False,
         },
-        "insights": {
-            "type": "array",
-            "items": {"type": "string"}
-        },
+        "insights": {"type": "array", "items": {"type": "string"}},
         "ques_ans": {
             "type": "array",
             "minItems": 5,
             "items": {
                 "type": "object",
-                "properties": {
-                    "ques": {"type": "string"},
-                    "ans": {"type": "string"}
-                },
+                "properties": {"ques": {"type": "string"}, "ans": {"type": "string"}},
                 "required": ["ques", "ans"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+            },
         },
         "script_summary": {
             "type": "string",
-            "description": "A 30-second spoken script that starts with a greeting and summarizes what the report covers."
-        }
+            "description": "A 30-second spoken script that starts with a greeting and summarizes what the report covers.",
+        },
     },
-    "required": [
-        "overview",
-        "report_details",
-        "insights",
-        "ques_ans",
-        "script_summary"
-    ],
-    "additionalProperties": False
+    "required": ["overview", "report_details", "insights", "ques_ans", "script_summary"],
+    "additionalProperties": False,
 }
 
 PUBLISH_STUFF_PROMPT = (
@@ -1765,11 +1764,11 @@ PUBLISH_OVERVIEW_SCHEMA = {
         "overview": {"type": "string"},
         "script_summary": {
             "type": "string",
-            "description": "A 30-second spoken script that starts with a greeting and summarizes what the report covers and its main focus."
-        }
+            "description": "A 30-second spoken script that starts with a greeting and summarizes what the report covers and its main focus.",
+        },
     },
     "required": ["overview", "script_summary"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 PUBLISH_OVERVIEW_PROMPT = (
     "Extract a detailed summary and a spoken script about the report.\n\n"
@@ -1780,7 +1779,7 @@ PUBLISH_OVERVIEW_PROMPT = (
     "- Clear, confident, and professional.\n"
     "- Visual style should match a modern research or business product (minimalist, clean).\n"
     "- End with a soft call to action: Encourage users to download or explore the full report.\n\n"
-    "Return the result in the format: {\"overview\": ..., \"script_summary\": ...}"
+    'Return the result in the format: {"overview": ..., "script_summary": ...}'
 )
 
 PUBLISH_REPORT_DETAILS_SCHEMA = {
@@ -1791,30 +1790,27 @@ PUBLISH_REPORT_DETAILS_SCHEMA = {
             "properties": {
                 "perspective": {
                     "type": "object",
-                    "properties": {
-                        "purpose": {"type": "string"},
-                        "audience": {"type": "string"}
-                    },
+                    "properties": {"purpose": {"type": "string"}, "audience": {"type": "string"}},
                     "required": ["purpose", "audience"],
-                    "additionalProperties": False
+                    "additionalProperties": False,
                 },
                 "focus_areas": {
                     "type": "object",
                     "properties": {
                         "industries_jobs": {"type": "string"},
                         "geographic_areas": {"type": "string"},
-                        "special_emphasis": {"type": "string"}
+                        "special_emphasis": {"type": "string"},
                     },
                     "required": ["industries_jobs", "geographic_areas", "special_emphasis"],
-                    "additionalProperties": False
-                }
+                    "additionalProperties": False,
+                },
             },
             "required": ["perspective", "focus_areas"],
-            "additionalProperties": False
+            "additionalProperties": False,
         }
     },
     "required": ["report_details"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 PUBLISH_REPORT_DETAILS_PROMPT = (
     "From the full report, extract and return the 'report_details' object in JSON format, using the following structure:\n\n"
@@ -1829,14 +1825,9 @@ PUBLISH_REPORT_DETAILS_PROMPT = (
 
 PUBLISH_INSIGHTS_SCHEMA = {
     "type": "object",
-    "properties": {
-        "insights": {
-            "type": "array",
-            "items": {"type": "string"}
-        }
-    },
+    "properties": {"insights": {"type": "array", "items": {"type": "string"}}},
     "required": ["insights"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 PUBLISH_INSIGHTS_PROMPT = "Extract key insights or takeaways from the report. Return as a list of strings under the key 'insights'."
 
@@ -1848,17 +1839,14 @@ PUBLISH_QUES_ANS_SCHEMA = {
             "minItems": 5,
             "items": {
                 "type": "object",
-                "properties": {
-                    "ques": {"type": "string"},
-                    "ans": {"type": "string"}
-                },
+                "properties": {"ques": {"type": "string"}, "ans": {"type": "string"}},
                 "required": ["ques", "ans"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+            },
         }
     },
     "required": ["ques_ans"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 PUBLISH_QUES_ANS_PROMPT = (
     "Carefully read the full report and generate at least 5 meaningful question-answer pairs that capture key facts, insights, or implications from the content.\n\n"
@@ -2303,10 +2291,8 @@ ADDITIONAL FORMATTING RULES
 
 REFINE_SCHEMA_GEMINI = {
     "type": "object",
-    "properties": {
-        "content": {"type": "string"}
-    },
-    "required": ["content"]
+    "properties": {"content": {"type": "string"}},
+    "required": ["content"],
 }
 
 REFINE_REPORT_LAYOUT_PROMPT = """You are a highly analytical report assistant with access to real-time internet information.
@@ -2346,10 +2332,10 @@ REFINE_REPORT_LAYOUT_SCHEMA = {
     "properties": {
         "report_layout": {
             "type": "string",
-            "description": "The refined and updated report layout in the exact same format as the input, with all sections enhanced using current internet-sourced information while preserving the original structure."
+            "description": "The refined and updated report layout in the exact same format as the input, with all sections enhanced using current internet-sourced information while preserving the original structure.",
         }
     },
-    "required": ["report_layout"]
+    "required": ["report_layout"],
 }
 
 # TABLE_TO_VIZ_PROMPT="""
@@ -2393,7 +2379,7 @@ REFINE_REPORT_LAYOUT_SCHEMA = {
 # - **Strictly** ensure nothing apart from the illustration itself is present in the final output.
 # """
 
-TABLE_TO_VIZ_PROMPT="""
+TABLE_TO_VIZ_PROMPT = """
 You are a Senior infographic design Engine designed for automated, publication-ready reporting.
 
 Your goal is to generate a **strictly accurate, professional infographic** based on the provided Markdown table. The infographic can be a **Diagram, Mind Map, or Workflow**, chosen based on the data structure.
@@ -2582,16 +2568,16 @@ CHECK_ES_UPDATE_REQUIRED_SCHEMA_OPENAI = {
             "properties": {
                 "update_required": {
                     "type": "boolean",
-                    "description": "True if the executive summary needs to be updated based on significant changes in refined cards, False if changes are minor or already reflected."
+                    "description": "True if the executive summary needs to be updated based on significant changes in refined cards, False if changes are minor or already reflected.",
                 },
                 "reasoning": {
                     "type": "string",
-                    "description": "Brief explanation (1-2 sentences) of why the update is or isn't needed."
-                }
+                    "description": "Brief explanation (1-2 sentences) of why the update is or isn't needed.",
+                },
             },
-            "required": ["update_required", "reasoning"]
-        }
-    }
+            "required": ["update_required", "reasoning"],
+        },
+    },
 }
 
 CHECK_ES_UPDATE_REQUIRED_SCHEMA_GEMINI = {
@@ -2599,14 +2585,11 @@ CHECK_ES_UPDATE_REQUIRED_SCHEMA_GEMINI = {
     "properties": {
         "update_required": {
             "type": "boolean",
-            "description": "True if executive summary needs update, False otherwise"
+            "description": "True if executive summary needs update, False otherwise",
         },
-        "reasoning": {
-            "type": "string",
-            "description": "Brief explanation of the decision"
-        }
+        "reasoning": {"type": "string", "description": "Brief explanation of the decision"},
     },
-    "required": ["update_required", "reasoning"]
+    "required": ["update_required", "reasoning"],
 }
 
 # DISABLED: Perplexity schema, superseded by CHECK_ES_UPDATE_REQUIRED_SCHEMA_GEMINI above
@@ -2683,12 +2666,12 @@ UPDATE_EXECUTIVE_SUMMARY_SCHEMA_OPENAI = {
             "properties": {
                 "updated_executive_summary": {
                     "type": "string",
-                    "description": "The updated executive summary (STRICTLY 400-450 words) that reflects changes in refined cards while preserving information about unchanged cards. Must be a coherent, flowing narrative without section headings or citation numbers. Do NOT exceed 450 words."
+                    "description": "The updated executive summary (STRICTLY 400-450 words) that reflects changes in refined cards while preserving information about unchanged cards. Must be a coherent, flowing narrative without section headings or citation numbers. Do NOT exceed 450 words.",
                 }
             },
-            "required": ["updated_executive_summary"]
-        }
-    }
+            "required": ["updated_executive_summary"],
+        },
+    },
 }
 
 UPDATE_EXECUTIVE_SUMMARY_SCHEMA_GEMINI = {
@@ -2696,10 +2679,10 @@ UPDATE_EXECUTIVE_SUMMARY_SCHEMA_GEMINI = {
     "properties": {
         "updated_executive_summary": {
             "type": "string",
-            "description": "The updated executive summary (STRICTLY 400-450 words) that reflects changes in refined cards while preserving information about unchanged cards. Do NOT exceed 450 words."
+            "description": "The updated executive summary (STRICTLY 400-450 words) that reflects changes in refined cards while preserving information about unchanged cards. Do NOT exceed 450 words.",
         }
     },
-    "required": ["updated_executive_summary"]
+    "required": ["updated_executive_summary"],
 }
 
 # DISABLED: Perplexity schema, superseded by UPDATE_EXECUTIVE_SUMMARY_SCHEMA_GEMINI above
@@ -2854,20 +2837,23 @@ def build_brief_prompt(drl: list, user_instructions: str, current_date: str) -> 
                 parts.append(sub["context_from_uploaded_file"])
         return "\n\n".join(p for p in parts if p)
 
-    drl_structure = _json.dumps([
-        {
-            "section": s.get("section", ""),
-            **({"context_from_uploaded_file": _merge_context(s)}
-               if _merge_context(s) else {}),
-        }
-        for s in drl
-    ], indent=2)
+    drl_structure = _json.dumps(
+        [
+            {
+                "section": s.get("section", ""),
+                **({"context_from_uploaded_file": _merge_context(s)} if _merge_context(s) else {}),
+            }
+            for s in drl
+        ],
+        indent=2,
+    )
 
     return BRIEF_USER_PROMPT.format(
         user_instructions=user_instructions,
         drl_structure=drl_structure,
         current_date=current_date,
     )
+
 
 # ---------------------------------------------------------------------------
 # DEPRECATED (kept for reference): old brief prompt builder that emitted
@@ -2908,6 +2894,7 @@ def build_brief_prompt(drl: list, user_instructions: str, current_date: str) -> 
 
 # ---------------------------------------------------------------------------
 
+
 def validate_and_fix_empty_content(card_data):
     """
     Validates card generation output and flags empty/missing content with clear
@@ -2920,37 +2907,48 @@ def validate_and_fix_empty_content(card_data):
         Dictionary with validated content (error markers for any empty fields)
     """
     from app.core.logging import setup_logging
+
     _logger = setup_logging(__file__)
 
-    section_name = card_data.get('section', '').strip()
+    section_name = card_data.get("section", "").strip()
 
     if not section_name:
-        card_data['section'] = "Section"
+        card_data["section"] = "Section"
         _logger.warning("validate_and_fix_empty_content: section name was empty, set to 'Section'")
 
-    section_content = card_data.get('content', '').strip()
+    section_content = card_data.get("content", "").strip()
     if not section_content or len(section_content) < 50:
-        card_data['content'] = f"[Content generation failed for section: {card_data['section']}]"
-        _logger.warning("validate_and_fix_empty_content: section '%s' had empty/short content", card_data['section'])
+        card_data["content"] = f"[Content generation failed for section: {card_data['section']}]"
+        _logger.warning(
+            "validate_and_fix_empty_content: section '%s' had empty/short content",
+            card_data["section"],
+        )
 
-    if 'sub_sections' in card_data and isinstance(card_data['sub_sections'], list):
-        for idx, sub_section in enumerate(card_data['sub_sections']):
-            if not sub_section.get('name', '').strip():
-                sub_section['name'] = f"Subsection {idx + 1}"
+    if "sub_sections" in card_data and isinstance(card_data["sub_sections"], list):
+        for idx, sub_section in enumerate(card_data["sub_sections"]):
+            if not sub_section.get("name", "").strip():
+                sub_section["name"] = f"Subsection {idx + 1}"
 
-            sub_content = sub_section.get('content', '').strip()
+            sub_content = sub_section.get("content", "").strip()
             if not sub_content or len(sub_content) < 50:
-                sub_section['content'] = f"[Content generation failed for subsection: {sub_section['name']}]"
+                sub_section["content"] = (
+                    f"[Content generation failed for subsection: {sub_section['name']}]"
+                )
                 _logger.warning(
                     "validate_and_fix_empty_content: subsection '%s' in section '%s' had empty/short content",
-                    sub_section['name'], card_data['section'],
+                    sub_section["name"],
+                    card_data["section"],
                 )
 
-    if 'sub_sections' not in card_data or not card_data['sub_sections']:
-        card_data['sub_sections'] = [{
-            'name': 'Overview',
-            'content': f"[Content generation failed for section: {card_data['section']}]"
-        }]
-        _logger.warning("validate_and_fix_empty_content: section '%s' had no sub_sections", card_data['section'])
+    if "sub_sections" not in card_data or not card_data["sub_sections"]:
+        card_data["sub_sections"] = [
+            {
+                "name": "Overview",
+                "content": f"[Content generation failed for section: {card_data['section']}]",
+            }
+        ]
+        _logger.warning(
+            "validate_and_fix_empty_content: section '%s' had no sub_sections", card_data["section"]
+        )
 
     return card_data

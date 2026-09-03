@@ -4,22 +4,26 @@ ensure all cited URLs follow the [site name](url) format,
 and fix table formatting (proper row separation, consistent
 column count with N/A for empty cells, correct spacing).
 """
+
+import copy
 import json
 import os
 import time
-import copy
-from typing import Dict, Any, List
+from typing import Any
+
+from google import genai
 from openai import OpenAI
 from pydantic import BaseModel, Field
-from google import genai
-from src.config.constants import CARD_FIX_MODEL, GEMINI_API_KEY, GEMINI_ES_MODEL_ID
-from src.config.log_helper import setup_logging
-from src.core.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
+
+from app.core.constants import CARD_FIX_MODEL, GEMINI_API_KEY, GEMINI_ES_MODEL_ID
+from app.core.logging import setup_logging
+from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
 
 logger = setup_logging(__name__)
 
 
 # ─── Pydantic schema for structured output ────────────────────────────────────
+
 
 class FixedSubSection(BaseModel):
     name: str = Field(description="The sub-section name, unchanged.")
@@ -28,9 +32,10 @@ class FixedSubSection(BaseModel):
 
 class FixedCard(BaseModel):
     """Full card with all content fields fixed."""
+
     section: str = Field(description="The section title, unchanged.")
     content: str = Field(description="The fixed top-level section content.")
-    sub_sections: List[FixedSubSection] = Field(
+    sub_sections: list[FixedSubSection] = Field(
         description="List of sub-sections with fixed content."
     )
 
@@ -49,13 +54,13 @@ _GEMINI_FIX_CARD_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Sub-section name, unchanged."},
-                    "content": {"type": "string", "description": "The fixed sub-section content."}
+                    "content": {"type": "string", "description": "The fixed sub-section content."},
                 },
-                "required": ["name", "content"]
-            }
-        }
+                "required": ["name", "content"],
+            },
+        },
     },
-    "required": ["section", "content", "sub_sections"]
+    "required": ["section", "content", "sub_sections"],
 }
 
 
@@ -155,13 +160,10 @@ _FIX_CARD_TOOL_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "section": {
-                    "type": "string",
-                    "description": "The section title, unchanged."
-                },
+                "section": {"type": "string", "description": "The section title, unchanged."},
                 "content": {
                     "type": "string",
-                    "description": "The fixed top-level section content."
+                    "description": "The fixed top-level section content.",
                 },
                 "sub_sections": {
                     "type": "array",
@@ -171,20 +173,20 @@ _FIX_CARD_TOOL_SCHEMA = {
                         "properties": {
                             "name": {
                                 "type": "string",
-                                "description": "Sub-section name, unchanged."
+                                "description": "Sub-section name, unchanged.",
                             },
                             "content": {
                                 "type": "string",
-                                "description": "The fixed sub-section content."
-                            }
+                                "description": "The fixed sub-section content.",
+                            },
                         },
-                        "required": ["name", "content"]
-                    }
-                }
+                        "required": ["name", "content"],
+                    },
+                },
             },
-            "required": ["section", "content", "sub_sections"]
-        }
-    }
+            "required": ["section", "content", "sub_sections"],
+        },
+    },
 }
 
 
@@ -258,13 +260,8 @@ Content:
 
 _GEMINI_CONTENT_FIX_SCHEMA = {
     "type": "object",
-    "properties": {
-        "fixed_content": {
-            "type": "string",
-            "description": "The fixed content string."
-        }
-    },
-    "required": ["fixed_content"]
+    "properties": {"fixed_content": {"type": "string", "description": "The fixed content string."}},
+    "required": ["fixed_content"],
 }
 
 _FIX_CONTENT_TOOL_SCHEMA = {
@@ -275,14 +272,11 @@ _FIX_CONTENT_TOOL_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "fixed_content": {
-                    "type": "string",
-                    "description": "The fixed content string."
-                }
+                "fixed_content": {"type": "string", "description": "The fixed content string."}
             },
-            "required": ["fixed_content"]
-        }
-    }
+            "required": ["fixed_content"],
+        },
+    },
 }
 
 
@@ -317,7 +311,9 @@ def fix_content(content: str, chat_id: str = None, user_id: str = None) -> str:
             tools=[_FIX_CONTENT_TOOL_SCHEMA],
             tool_choice={"type": "function", "function": {"name": "fix_content"}},
         )
-        save_raw_llm_response(response, CARD_FIX_MODEL, "Fixing report section content", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            response, CARD_FIX_MODEL, "Fixing report section content", chat_id, user_id=user_id
+        )
 
         tool_call = response.choices[0].message.tool_calls[0]
         result = json.loads(tool_call.function.arguments)
@@ -329,8 +325,7 @@ def fix_content(content: str, chat_id: str = None, user_id: str = None) -> str:
 
     except Exception as e:
         logger.warning(
-            f"[fix_content] OpenAI failed ({type(e).__name__}: {e}), "
-            "falling back to Gemini"
+            f"[fix_content] OpenAI failed ({type(e).__name__}: {e}), falling back to Gemini"
         )
 
     # ── Fallback: Gemini ─────────────────────────────────────────────────
@@ -350,7 +345,13 @@ def fix_content(content: str, chat_id: str = None, user_id: str = None) -> str:
                 "thinking_config": {"thinking_budget": 0},
             },
         )
-        save_raw_llm_response(interaction, GEMINI_ES_MODEL_ID, "Fixing report section content (backup)", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            interaction,
+            GEMINI_ES_MODEL_ID,
+            "Fixing report section content (backup)",
+            chat_id,
+            user_id=user_id,
+        )
 
         result = json.loads(strip_json_code_fence(interaction.output_text))
         fixed = result.get("fixed_content", content)
@@ -368,7 +369,7 @@ def fix_content(content: str, chat_id: str = None, user_id: str = None) -> str:
         return content
 
 
-def fix_card(card: Dict[str, Any], chat_id: str = None, user_id: str = None) -> Dict[str, Any]:
+def fix_card(card: dict[str, Any], chat_id: str = None, user_id: str = None) -> dict[str, Any]:
     """
     Fix an entire card in a single LLM call:
       1. Serialize the card dict to JSON.
@@ -411,7 +412,9 @@ def fix_card(card: Dict[str, Any], chat_id: str = None, user_id: str = None) -> 
             tools=[_FIX_CARD_TOOL_SCHEMA],
             tool_choice={"type": "function", "function": {"name": "fix_card"}},
         )
-        save_raw_llm_response(response, CARD_FIX_MODEL, "Fixing a report card", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            response, CARD_FIX_MODEL, "Fixing a report card", chat_id, user_id=user_id
+        )
 
         tool_call = response.choices[0].message.tool_calls[0]
         fixed_card = json.loads(tool_call.function.arguments)
@@ -443,7 +446,13 @@ def fix_card(card: Dict[str, Any], chat_id: str = None, user_id: str = None) -> 
                 "thinking_config": {"thinking_budget": 0},
             },
         )
-        save_raw_llm_response(interaction, GEMINI_ES_MODEL_ID, "Fixing a report card (backup)", chat_id, user_id=user_id)
+        save_raw_llm_response(
+            interaction,
+            GEMINI_ES_MODEL_ID,
+            "Fixing a report card (backup)",
+            chat_id,
+            user_id=user_id,
+        )
 
         fixed_card = json.loads(strip_json_code_fence(interaction.output_text))
 

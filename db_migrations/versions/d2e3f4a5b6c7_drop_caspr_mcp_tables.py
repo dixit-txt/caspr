@@ -9,16 +9,17 @@ Revises: 5bd11a6275f4
 Create Date: 2026-09-02
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision: str = 'd2e3f4a5b6c7'
-down_revision: Union[str, None] = '5bd11a6275f4'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "d2e3f4a5b6c7"
+down_revision: str | None = "5bd11a6275f4"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -31,13 +32,13 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Recreate the MCP API key table and messages.is_mcp (keys are not recoverable)."""
     op.add_column(
-        'messages',
+        "messages",
         sa.Column(
-            'is_mcp',
+            "is_mcp",
             sa.Boolean(),
             nullable=False,
-            server_default='false',
-            comment='Whether this chat was originated via an MCP API key',
+            server_default="false",
+            comment="Whether this chat was originated via an MCP API key",
         ),
     )
     op.create_table(
