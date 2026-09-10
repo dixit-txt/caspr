@@ -1,0 +1,20 @@
+# R-TOOL-4. Any red step blocks merge; no continue-on-error.
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+      # --locked fails the build on a stale lockfile. Never --frozen here:
+      # that silently accepts pyproject.toml/uv.lock drift (R-UV-3).
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - run: uv run pytest -m "unit or integration or smoke"

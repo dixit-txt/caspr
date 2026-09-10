@@ -12,23 +12,23 @@ Existing rows default to NULL (treated as 'study' by application code).
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'c1d2e3f4a5b6'
-down_revision = 'b3c4d5e6f7a8'
+revision = "c1d2e3f4a5b6"
+down_revision = "b3c4d5e6f7a8"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     op.add_column(
-        'reports',
+        "reports",
         sa.Column(
-            'report_type',
+            "report_type",
             sa.String(10),
             nullable=True,
             comment="Report generation type: study or brief",
-        )
+        ),
     )
 
 
 def downgrade():
-    op.drop_column('reports', 'report_type')
+    op.drop_column("reports", "report_type")

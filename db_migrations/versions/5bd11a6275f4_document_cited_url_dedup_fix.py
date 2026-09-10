@@ -6,7 +6,7 @@ Create Date: 2026-08-06 12:20:00.000000
 
 No schema change. Adds Postgres COMMENT ON TABLE/COLUMN metadata to
 web_search_citations and web_search_events.cited_count, documenting a bug
-(now fixed in src/db/web_search_db.py::_normalize_links) where the same
+(now fixed in app.admin.repository_web_search.py::_normalize_links) where the same
 cited URL could be persisted as two was_cited_in_output=True rows per
 search_event_id — one sourced from OpenAI's own url_citation annotations,
 one from a plain-text URL regex fallback over the final rendered output.
@@ -16,21 +16,22 @@ schema directly (e.g. for analysis or dashboards) the same context as the
 Python-side docstrings on WebSearchCitation / WebSearchEvent, so historical
 rows created before this fix aren't silently double-counted.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '5bd11a6275f4'
-down_revision: Union[str, None] = '9c1d2e3f4a5b'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "5bd11a6275f4"
+down_revision: str | None = "9c1d2e3f4a5b"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 _TABLE_COMMENT = (
     "One row per URL returned by a single WebSearchEvent (candidate or cited). "
     "CAVEAT for analysis/dashboards: rows created before the dedup fix in "
-    "src/db/web_search_db.py::_normalize_links may contain the SAME cited URL "
+    "app.admin.repository_web_search.py::_normalize_links may contain the SAME cited URL "
     "as two separate was_cited_in_output=true rows per search_event_id (one "
     "from OpenAI's url_citation annotations, one from a text-regex fallback "
     "over the final rendered output). This does not affect "
@@ -49,13 +50,9 @@ _CITED_COUNT_COMMENT = (
 
 
 def upgrade() -> None:
+    op.execute(f"COMMENT ON TABLE web_search_citations IS {_pg_quote(_TABLE_COMMENT)}")
     op.execute(
-        "COMMENT ON TABLE web_search_citations IS "
-        f"{_pg_quote(_TABLE_COMMENT)}"
-    )
-    op.execute(
-        "COMMENT ON COLUMN web_search_events.cited_count IS "
-        f"{_pg_quote(_CITED_COUNT_COMMENT)}"
+        f"COMMENT ON COLUMN web_search_events.cited_count IS {_pg_quote(_CITED_COUNT_COMMENT)}"
     )
 
 

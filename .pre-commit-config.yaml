@@ -1,0 +1,29 @@
+# R-TOOL-3: pre-commit runs the same commands CI runs.
+#
+# Local hooks rather than pinned remote ones (e.g. ruff-pre-commit) so tool
+# versions come from uv.lock alone. With remote hooks the `rev` and the
+# lockfile drift, producing the failure mode where pre-commit passes and CI
+# fails on the same file.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
+      - id: route-inventory
+        name: route inventory unchanged
+        entry: uv run python tests/smoke/route_inventory.py
+        language: system
+        pass_filenames: false

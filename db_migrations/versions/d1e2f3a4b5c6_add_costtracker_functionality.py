@@ -10,27 +10,27 @@ report_generation, refine, refine_visualization, executive_summary,
 infographic, pptx_generation, ask_caspr, other).
 
 The column is a plain ``VARCHAR`` (NOT a Postgres native enum): the allowed
-values live in ``src.core.observability.functionality_context.Functionality`` (a Python enum)
+values live in ``app.observability.functionality_context.Functionality`` (a Python enum)
 so buckets can be added / renamed without a DB enum migration.
 
 A best-effort backfill maps existing rows' free-text ``context`` / ``agent_name``
 labels onto the new buckets so historical spend is attributed too.
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = 'd1e2f3a4b5c6'
-down_revision: Union[str, None] = 'c6d7e8f9a0b1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "d1e2f3a4b5c6"
+down_revision: str | None = "c6d7e8f9a0b1"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # (SQL ILIKE pattern, functionality) — evaluated top-to-bottom; FIRST match
-# wins. Kept in sync with src.core.observability.functionality_context._CONTEXT_RULES. The
+# wins. Kept in sync with app.observability.functionality_context._CONTEXT_RULES. The
 # patterns match the human-readable ``context`` phrases stored by
 # ``save_raw_llm_response`` (plus code-identifier fragments for robustness).
 _BACKFILL_RULES: list[tuple[str, str]] = [
@@ -125,22 +125,22 @@ _BACKFILL_RULES: list[tuple[str, str]] = [
 
 def upgrade() -> None:
     op.add_column(
-        'costtracker',
+        "costtracker",
         sa.Column(
-            'functionality',
+            "functionality",
             sa.String(length=50),
             nullable=True,
             comment=(
-                'Stable user-facing functionality bucket '
-                '(see src.core.observability.functionality_context.Functionality), '
-                'e.g. report_generation'
+                "Stable user-facing functionality bucket "
+                "(see app.observability.functionality_context.Functionality), "
+                "e.g. report_generation"
             ),
         ),
     )
     op.create_index(
-        'idx_costtracker_functionality',
-        'costtracker',
-        ['functionality'],
+        "idx_costtracker_functionality",
+        "costtracker",
+        ["functionality"],
         unique=False,
     )
 
@@ -158,12 +158,10 @@ def upgrade() -> None:
         )
     # Anything still unmatched → 'other'.
     conn.execute(
-        sa.text(
-            "UPDATE costtracker SET functionality = 'other' WHERE functionality IS NULL"
-        )
+        sa.text("UPDATE costtracker SET functionality = 'other' WHERE functionality IS NULL")
     )
 
 
 def downgrade() -> None:
-    op.drop_index('idx_costtracker_functionality', table_name='costtracker')
-    op.drop_column('costtracker', 'functionality')
+    op.drop_index("idx_costtracker_functionality", table_name="costtracker")
+    op.drop_column("costtracker", "functionality")

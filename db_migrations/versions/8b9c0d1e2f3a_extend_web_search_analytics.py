@@ -4,7 +4,8 @@ Revision ID: 8b9c0d1e2f3a
 Revises: 7a8b9c0d1e2f
 Create Date: 2026-07-22 20:50:00.000000
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
@@ -12,9 +13,9 @@ from sqlalchemy.dialects import postgresql
 
 
 revision: str = "8b9c0d1e2f3a"
-down_revision: Union[str, None] = "7a8b9c0d1e2f"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "7a8b9c0d1e2f"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 EVENT_COLUMNS = (
@@ -48,9 +49,7 @@ def upgrade() -> None:
 
     # Existing rows get a stable correlation value without inventing a shared
     # operation. New ORM writes generate a fresh operation UUID.
-    op.execute(
-        "UPDATE web_search_events SET operation_id = id WHERE operation_id IS NULL"
-    )
+    op.execute("UPDATE web_search_events SET operation_id = id WHERE operation_id IS NULL")
     op.alter_column("web_search_events", "operation_id", nullable=False)
 
     for column in CITATION_COLUMNS:
@@ -61,9 +60,7 @@ def upgrade() -> None:
         "web_search_events",
         ["operation_id"],
     )
-    op.create_index(
-        "idx_web_search_events_provider", "web_search_events", ["provider"]
-    )
+    op.create_index("idx_web_search_events_provider", "web_search_events", ["provider"])
     op.create_index("idx_web_search_events_status", "web_search_events", ["status"])
     op.create_index("idx_web_search_events_card_id", "web_search_events", ["card_id"])
     op.create_index(
@@ -95,9 +92,7 @@ def downgrade() -> None:
     op.drop_index("idx_web_search_events_card_id", table_name="web_search_events")
     op.drop_index("idx_web_search_events_status", table_name="web_search_events")
     op.drop_index("idx_web_search_events_provider", table_name="web_search_events")
-    op.drop_index(
-        "idx_web_search_events_operation_id", table_name="web_search_events"
-    )
+    op.drop_index("idx_web_search_events_operation_id", table_name="web_search_events")
 
     for column in reversed(CITATION_COLUMNS):
         op.drop_column("web_search_citations", column.name)

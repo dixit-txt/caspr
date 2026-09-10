@@ -1,26 +1,31 @@
 """HTTP shim must restore datetime so generate-report can call isoformat()."""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest import TestCase
 
-from src.core.report_util.entry_point import (
+import pytest
+
+from app.deliverables.service_entry import (
     parse_iso_datetime,
     restore_report_output_datetimes,
 )
 
 
+@pytest.mark.unit
 class ParseIsoDatetimeTests(TestCase):
     def test_parses_zulu_string(self):
         value = parse_iso_datetime("2026-09-03T06:22:49Z")
         self.assertIsInstance(value, datetime)
-        self.assertEqual(value, datetime(2026, 9, 3, 6, 22, 49, tzinfo=timezone.utc))
+        self.assertEqual(value, datetime(2026, 9, 3, 6, 22, 49, tzinfo=UTC))
 
     def test_leaves_datetime_unchanged(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.assertIs(parse_iso_datetime(now), now)
 
 
+@pytest.mark.unit
 class RestoreReportOutputDatetimesTests(TestCase):
     def test_restores_nested_generation_time(self):
         payload = restore_report_output_datetimes(

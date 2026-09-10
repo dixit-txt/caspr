@@ -20,29 +20,30 @@ session via ``GET /get-walkover-status``.
 they log in. Adjust the server_default to ``'true'`` here if you want to
 skip the walkover for existing users.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd7e2f9a4b6c1'
-down_revision: Union[str, None] = 'c5d8e1a3b9f7'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "d7e2f9a4b6c1"
+down_revision: str | None = "c5d8e1a3b9f7"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     """Drop ``is_first_login`` and add ``walkover_completed`` on ``users``."""
-    op.drop_column('users', 'is_first_login')
+    op.drop_column("users", "is_first_login")
     op.add_column(
-        'users',
+        "users",
         sa.Column(
-            'walkover_completed',
+            "walkover_completed",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text('false'),
+            server_default=sa.text("false"),
             comment=(
                 "False until the user explicitly finishes the in-app walkover/"
                 "walkthrough. Frontend reads this via GET /get-walkover-status "
@@ -60,14 +61,14 @@ def downgrade() -> None:
     the original migration's choice of "existing rows have already logged
     in") and drop ``walkover_completed``.
     """
-    op.drop_column('users', 'walkover_completed')
+    op.drop_column("users", "walkover_completed")
     op.add_column(
-        'users',
+        "users",
         sa.Column(
-            'is_first_login',
+            "is_first_login",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text('false'),
+            server_default=sa.text("false"),
             comment=(
                 "Set to True on the user's first signup. Flipped back to False "
                 "automatically on the first successful login so the frontend can "
