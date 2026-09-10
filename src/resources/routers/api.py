@@ -1585,6 +1585,49 @@ async def refresh_session(stream_key: str, chat_id: str):
         logger.error(f"[SSE] Error refreshing session: {e} for chat_id: {chat_id} and stream_key: {stream_key}")
         return False
 
+#: Custom events that carry the layout the model proposes during the feedback
+#: phase — as opposed to the final one `retrieve` emits. The three
+#: `proposed_report_layout_*` events stream that layout card by card while the
+#: model is still writing it, so the preview fills in live; `propose_report_layout`
+#: then carries the authoritative layout (title resolved, fully parsed) and
+#: REPLACES whatever the stream built, and `updated_proposed_report_layout`
+#: replaces it once more when the background web refresh lands.
+LAYOUT_PROPOSAL_EVENTS = {
+    "proposed_report_layout_start": "report_layout_proposal_start",
+    "proposed_report_layout_card": "report_layout_proposal_card",
+    "proposed_report_layout_end": "report_layout_proposal_end",
+    "propose_report_layout": "report_layout_proposal",
+    "updated_proposed_report_layout": "report_layout_proposal_updated",
+}
+
+
+def _layout_proposal_sse_payload(output: dict, report_id: str = "") -> dict:
+    """Build the SSE payload for one layout-proposal event.
+
+    A `proposal_id` ties a streamed preview to the layout it belongs to, so a
+    revised proposal later in the conversation replaces the first one instead of
+    being appended to it.
+    """
+    name = output.get("name", "")
+    payload = {"type": LAYOUT_PROPOSAL_EVENTS[name], "report_id": report_id}
+    if "proposal_id" in output:
+        payload["proposal_id"] = output.get("proposal_id", "")
+    if name == "proposed_report_layout_card":
+        payload["index"] = output.get("index", 0)
+        payload["data"] = output.get("card", {})
+        return payload
+
+    payload["report_title"] = output.get("report_title", "")
+    if name == "proposed_report_layout_end":
+        payload["cards"] = output.get("cards", 0)
+        payload["aborted"] = output.get("aborted", False)
+    if name in ("propose_report_layout", "updated_proposed_report_layout"):
+        payload["data"] = output.get("report_layout", [])
+    if name == "updated_proposed_report_layout":
+        payload["change_summary"] = output.get("change_summary", "")
+    return payload
+
+
 async def chat_producer(data: ChatRequest, user_id: str):
     """Chat endpoint with streaming response"""
     logger.info(f"Processing chat request from user_id: {user_id} and chat_id: {data.chat_id}")
@@ -1935,6 +1978,12 @@ async def chat_producer(data: ChatRequest, user_id: str):
                     await redis_instance.redis_client.xadd(stream_key, {
                         "event": "message",
                         "data": json.dumps({"type": sse_type, "message": sse_msg})
+                    })
+
+                elif custom_name in LAYOUT_PROPOSAL_EVENTS:
+                    await redis_instance.redis_client.xadd(stream_key, {
+                        "event": "message",
+                        "data": json.dumps(_layout_proposal_sse_payload(output, report_id))
                     })
 
                 elif custom_name in ("pr_generate_drl", "dd_generate_drl") and custom_status in ("start", "end"):
@@ -3433,6 +3482,12 @@ async def temp_chat_producer(data: TempChatRequest):
                         "event": "message",
                         "data": json.dumps(payload)
                     })
+                elif custom_name in LAYOUT_PROPOSAL_EVENTS:
+                    await redis_instance.redis_client.xadd(stream_key, {
+                        "event": "message",
+                        "data": json.dumps(_layout_proposal_sse_payload(output))
+                    })
+
                 else:
                     event_data = {
                         "event": "message",

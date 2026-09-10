@@ -39,6 +39,7 @@ from app.core.logging import setup_logging
 from app.observability.llm_response_logger import save_raw_llm_response, strip_json_code_fence
 from app.research.agent._base import CasperBase
 from app.research.agent._helpers import (
+    ProposedLayoutStreamer,
     _normalize_tool_call,
 )
 from app.research.agent._state import (
@@ -111,6 +112,85 @@ class ChatMixin(CasperBase):
             + json.dumps(options, ensure_ascii=False)
             + "."
         )
+
+    async def _stream_planning_response(self, llm_with_tools, messages, event_writer):
+        """Run the planning LLM as a stream so a proposed layout can be previewed live.
+
+        ``propose_report_layout`` is a tool, so it only runs once the model has
+        finished writing every last section — which is exactly the wait the user
+        sits through while a long layout is composed. Streaming the call lets the
+        tool-call arguments be read while they arrive: ``ProposedLayoutStreamer``
+        emits each card the moment its Markdown is provably complete, and the
+        tool's own event later replaces that preview with the authoritative
+        layout (title resolution and the web refresh happen there, not here).
+
+        Returns a plain ``AIMessage``: the rest of the graph and the persisted
+        chat history expect type "ai", not "AIMessageChunk".
+        """
+        full = None
+        streamer: ProposedLayoutStreamer | None = None
+        try:
+            async for chunk in llm_with_tools.astream(messages):
+                full = chunk if full is None else full + chunk
+                for call in getattr(full, "tool_call_chunks", None) or []:
+                    # `startswith`, not `==`: the name arrives on the first
+                    # fragment only, but a provider that repeats it leaves the
+                    # merged chunk holding the name concatenated with itself.
+                    if not (call.get("name") or "").startswith("propose_report_layout"):
+                        continue
+                    if streamer is None:
+                        streamer = ProposedLayoutStreamer(
+                            event_writer, proposal_id=call.get("id") or ""
+                        )
+                        logger.info(
+                            f"[propose_report_layout] Streaming layout preview | "
+                            f"user: {self.user_name} - chat_id: {self.chat_id}"
+                        )
+                    try:
+                        streamer.feed(call.get("args") or "")
+                    except Exception as e:
+                        # A preview is never worth failing the turn over — the
+                        # tool still emits the full layout a moment later.
+                        logger.warning(
+                            f"[propose_report_layout] Layout preview parse failed: {e} | "
+                            f"user: {self.user_name} - chat_id: {self.chat_id}"
+                        )
+        except Exception:
+            if streamer is not None:
+                streamer.finish(aborted=True)
+            raise
+
+        if full is None:
+            raise ValueError("The planning model produced no output")
+
+        response = AIMessage(
+            content=full.content,
+            additional_kwargs=full.additional_kwargs,
+            response_metadata=full.response_metadata,
+            tool_calls=list(getattr(full, "tool_calls", None) or []),
+            invalid_tool_calls=list(getattr(full, "invalid_tool_calls", None) or []),
+            usage_metadata=getattr(full, "usage_metadata", None),
+            id=full.id,
+        )
+
+        if streamer is not None:
+            # Close the preview off the parsed arguments rather than the last
+            # fragment, so the final section is flushed from complete Markdown.
+            layout_args = {}
+            for call in response.tool_calls:
+                if call.get("name") == "propose_report_layout":
+                    layout_args = _normalize_tool_call(call).get("args") or {}
+                    break
+            streamer.finish(
+                report_layout=str(layout_args.get("report_layout") or ""),
+                report_title=str(layout_args.get("report_title") or ""),
+            )
+            logger.info(
+                f"[propose_report_layout] Layout preview streamed {streamer.index} card(s) | "
+                f"user: {self.user_name} - chat_id: {self.chat_id}"
+            )
+
+        return response
 
     async def report_or_respond(self, state: MessagesState) -> dict[str, list]:
         """Generate tool call to retrieve relevant information for generating a report in markdown according to the user's instructions or respond to the user's query directly."""
@@ -242,7 +322,9 @@ class ChatMixin(CasperBase):
                     f"[normal_flow] Using anthropic llm for user: {self.user_name} - chat_id: {self.chat_id}"
                 )
                 llm_with_tools = self.anthropic_llm.bind_tools(bound_tools)
-                response = await llm_with_tools.ainvoke(messages)
+                response = await self._stream_planning_response(
+                    llm_with_tools, messages, event_writer
+                )
                 save_raw_llm_response(
                     response,
                     ANTHROPIC_MODEL_ID,
